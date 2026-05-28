@@ -111,6 +111,7 @@ export const defaultAppData: AppData = {
   settings: {
     currency: 'THB',
     dateLocale: 'th-TH',
+    paydayDay: 1,
     schemaVersion: 1,
   },
 };

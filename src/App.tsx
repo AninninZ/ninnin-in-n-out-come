@@ -96,7 +96,12 @@ export default function App() {
       try {
         setSyncError("");
         const remoteData = await loadRemoteAppData(supabaseClient, userId);
-        if (isMounted) setData(remoteData);
+        if (isMounted) {
+          setData((current) => ({
+            ...remoteData,
+            settings: current.settings,
+          }));
+        }
       } catch (error) {
         if (isMounted) {
           setSyncError(
@@ -179,6 +184,20 @@ export default function App() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function updatePaydayDay(paydayDay: number) {
+    setData((current) => {
+      const nextData = {
+        ...current,
+        settings: {
+          ...current.settings,
+          paydayDay,
+        },
+      };
+      saveAppData(nextData);
+      return nextData;
+    });
   }
 
   async function addTransaction(input: TransactionInput) {
@@ -350,7 +369,9 @@ export default function App() {
             transactions={data.transactions}
             categories={data.categories}
             filter={filter}
+            paydayDay={data.settings.paydayDay}
             onFilterChange={setFilter}
+            onPaydayDayChange={updatePaydayDay}
           />
         )}
         {activePage === "transactions" && (
@@ -616,17 +637,19 @@ function TransactionsPage({
                 return (
                   <tr key={transaction.id}>
                     <td data-label="วันที่">{formatDate(transaction.date)}</td>
-                    <td data-label="ประเภท">
+                    <td className="transaction-type-cell" data-label="ประเภท">
                       <span className={`type-pill ${transaction.type}`}>
                         {getTransactionTypeLabel(transaction.type)}
                       </span>
                     </td>
-                    <td data-label="หมวดหมู่">
-                      <span
-                        className="category-dot"
-                        style={{ background: category?.color ?? "#64748b" }}
-                      />
-                      {category?.name ?? "ไม่พบหมวดหมู่"}
+                    <td className="transaction-category-cell" data-label="หมวดหมู่">
+                      <span className="transaction-category-value">
+                        <span
+                          className="category-dot"
+                          style={{ background: category?.color ?? "#64748b" }}
+                        />
+                        <span>{category?.name ?? "ไม่พบหมวดหมู่"}</span>
+                      </span>
                     </td>
                     <td data-label="โน้ต">{transaction.note || "-"}</td>
                     <td

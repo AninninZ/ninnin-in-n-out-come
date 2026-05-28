@@ -25,6 +25,7 @@ export type Category = {
 export type AppSettings = {
   currency: "THB";
   dateLocale: "th-TH";
+  paydayDay: number;
   schemaVersion: 1;
 };
 
@@ -39,6 +40,7 @@ export type PeriodFilter = {
   year: number;
   month: number;
   day?: number;
+  paydayDay?: number;
 };
 
 export type TransactionInput = {

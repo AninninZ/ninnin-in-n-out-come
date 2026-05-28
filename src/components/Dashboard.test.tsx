@@ -88,6 +88,7 @@ describe('Dashboard', () => {
     expect(screen.getByLabelText('รูปแบบช่วงเวลา')).toHaveValue('month');
     expect(screen.getByLabelText('เดือน')).toHaveValue('5');
     expect(screen.queryByLabelText('วันที่')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('ตัวกรองช่วงเวลา Dashboard')).toHaveClass('dashboard-filter-controls');
   });
 
   it('updates displayed totals when the month filter changes', async () => {
@@ -120,6 +121,61 @@ describe('Dashboard', () => {
     );
 
     expect(screen.getAllByText('฿500').length).toBeGreaterThan(0);
+  });
+
+  it('summarizes a monthly dashboard from the selected payday day', async () => {
+    const onPaydayDayChange = vi.fn();
+
+    render(
+      <Dashboard
+        transactions={[
+          ...transactions,
+          {
+            id: 'before-payday',
+            type: 'expense',
+            categoryId: 'food',
+            amount: 900,
+            date: '2026-05-24',
+            note: '',
+            createdAt: '2026-05-24T00:00:00.000Z',
+            updatedAt: '2026-05-24T00:00:00.000Z',
+          },
+          {
+            id: 'salary-cycle',
+            type: 'income',
+            categoryId: 'salary',
+            amount: 30000,
+            date: '2026-05-25',
+            note: '',
+            createdAt: '2026-05-25T00:00:00.000Z',
+            updatedAt: '2026-05-25T00:00:00.000Z',
+          },
+          {
+            id: 'cycle-expense',
+            type: 'expense',
+            categoryId: 'food',
+            amount: 700,
+            date: '2026-06-24',
+            note: '',
+            createdAt: '2026-06-24T00:00:00.000Z',
+            updatedAt: '2026-06-24T00:00:00.000Z',
+          },
+        ]}
+        categories={defaultCategories}
+        filter={{ type: 'month', year: 2026, month: 5 }}
+        paydayDay={25}
+        onFilterChange={vi.fn()}
+        onPaydayDayChange={onPaydayDayChange}
+      />,
+    );
+
+    expect(screen.getByText('รอบเงินเดือน 25 พ.ค. - 24 มิ.ย.')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'วันเงินเดือนออก' })).toHaveValue('25');
+    expect(screen.getByLabelText('รายจ่าย ฿1,200')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'วันเงินเดือนออก' }), { target: { value: '28' } });
+
+    expect(onPaydayDayChange).toHaveBeenLastCalledWith(28);
   });
 
   it('summarizes actual expenses and planned budget in the category budget panel', () => {
@@ -155,9 +211,10 @@ describe('Dashboard', () => {
     expect(screen.getAllByText('1-3').length).toBeGreaterThan(0);
     expect(screen.getAllByText('4-10').length).toBeGreaterThan(0);
     expect(screen.getAllByText('11-17').length).toBeGreaterThan(0);
-    expect(screen.getByText('วันที่ 2')).toBeInTheDocument();
+    const chartScroller = screen.getByRole('region', { name: 'แถบจำนวนเงินรายวันแบบเลื่อนได้' });
+    expect(within(chartScroller).getByText('วันที่ 2')).toBeInTheDocument();
     expect(screen.getAllByText('฿1,000').length).toBeGreaterThan(0);
-    expect(screen.getByText('วันที่ 15')).toBeInTheDocument();
+    expect(within(chartScroller).getByText('วันที่ 15')).toBeInTheDocument();
     expect(screen.getAllByText('฿250').length).toBeGreaterThan(0);
   });
 

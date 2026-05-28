@@ -84,6 +84,21 @@ describe("App smoke flow", () => {
     expect(screen.getAllByText("฿2,500").length).toBeGreaterThan(0);
   });
 
+  it("persists the selected payday day for the next app load", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<App />);
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "วันเงินเดือนออก" }), "25");
+
+    expect(window.localStorage.getItem(STORAGE_KEY)).toContain('"paydayDay":25');
+
+    unmount();
+    render(<App />);
+
+    expect(screen.getByRole("combobox", { name: "วันเงินเดือนออก" })).toHaveValue("25");
+    expect(screen.getByText("รอบเงินเดือน 25 พ.ค. - 24 มิ.ย.")).toBeInTheDocument();
+  });
+
   it("requires confirmation before deleting a transaction", async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -135,6 +150,30 @@ describe("App smoke flow", () => {
     expect(screen.getByText("รายการที่ 12")).toBeInTheDocument();
     expect(screen.getByText("รายการที่ 03")).toBeInTheDocument();
     expect(screen.queryByText("รายการที่ 02")).not.toBeInTheDocument();
+  });
+
+  it("marks transaction cells for compact mobile reading", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "รายการ" }));
+    await user.click(screen.getByRole("button", { name: "ออมเงิน" }));
+    await user.selectOptions(
+      screen.getByLabelText("หมวดหมู่"),
+      screen.getByRole("option", { name: "เงินออม" }),
+    );
+    await user.type(screen.getByLabelText("จำนวนเงิน"), "2500");
+    await user.type(screen.getByLabelText("โน้ต"), "เงินสำรอง");
+    await user.click(screen.getByRole("button", { name: "เพิ่มรายการ" }));
+
+    const savingsRow = screen.getByText("เงินสำรอง").closest("tr");
+    expect(savingsRow).not.toBeNull();
+    expect(within(savingsRow as HTMLTableRowElement).getByText("ออมเงิน").closest("td")).toHaveClass(
+      "transaction-type-cell",
+    );
+    expect(within(savingsRow as HTMLTableRowElement).getByText("เงินออม").closest("td")).toHaveClass(
+      "transaction-category-cell",
+    );
   });
 
   it("requires confirmation before resetting demo data", async () => {

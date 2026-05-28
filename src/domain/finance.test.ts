@@ -124,6 +124,62 @@ describe('finance domain', () => {
     expect(result.map((transaction) => transaction.id)).toEqual(['t1', 't2', 't3', 't5']);
   });
 
+  it('filters monthly transactions by payday cycle when a payday day is set', () => {
+    const result = filterTransactionsByPeriod(
+      [
+        ...transactions,
+        {
+          id: 'before-payday',
+          type: 'expense',
+          categoryId: 'food',
+          amount: 100,
+          date: '2026-05-24',
+          note: '',
+          createdAt: '2026-05-24T05:00:00.000Z',
+          updatedAt: '2026-05-24T05:00:00.000Z',
+        },
+        {
+          id: 'cycle-start',
+          type: 'income',
+          categoryId: 'salary',
+          amount: 30000,
+          date: '2026-05-25',
+          note: '',
+          createdAt: '2026-05-25T05:00:00.000Z',
+          updatedAt: '2026-05-25T05:00:00.000Z',
+        },
+        {
+          id: 'cycle-end',
+          type: 'expense',
+          categoryId: 'food',
+          amount: 200,
+          date: '2026-06-24',
+          note: '',
+          createdAt: '2026-06-24T05:00:00.000Z',
+          updatedAt: '2026-06-24T05:00:00.000Z',
+        },
+        {
+          id: 'next-cycle',
+          type: 'expense',
+          categoryId: 'food',
+          amount: 300,
+          date: '2026-06-25',
+          note: '',
+          createdAt: '2026-06-25T05:00:00.000Z',
+          updatedAt: '2026-06-25T05:00:00.000Z',
+        },
+      ],
+      {
+        type: 'month',
+        year: 2026,
+        month: 5,
+        paydayDay: 25,
+      },
+    );
+
+    expect(result.map((transaction) => transaction.id)).toEqual(['t4', 'cycle-start', 'cycle-end']);
+  });
+
   it('filters transactions by day when a daily dashboard view is selected', () => {
     const result = filterTransactionsByPeriod(transactions, {
       type: 'day',

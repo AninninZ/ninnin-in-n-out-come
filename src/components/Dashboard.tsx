@@ -3,22 +3,40 @@ import {
   calculateBudgetUsage,
   calculateTotals,
   filterTransactionsByPeriod,
+  getMonthlyPeriodRange,
   groupTransactionsByCategory,
 } from '../domain/finance';
 import { formatCurrency, getMonthName } from '../format';
 import type { Category, PeriodFilter, Transaction } from '../types';
 
 const appLogoPath = '/assets/nin-jah-ma-jod-logo.png';
+type DailyExpensePoint = {
+  date: string;
+  day: number;
+  expense: number;
+};
 
 type Props = {
   transactions: Transaction[];
   categories: Category[];
   filter: PeriodFilter;
+  paydayDay?: number;
   onFilterChange: (filter: PeriodFilter) => void;
+  onPaydayDayChange?: (paydayDay: number) => void;
 };
 
-export function Dashboard({ transactions, categories, filter, onFilterChange }: Props) {
-  const filteredTransactions = filterTransactionsByPeriod(transactions, filter);
+export function Dashboard({
+  transactions,
+  categories,
+  filter,
+  paydayDay = 1,
+  onFilterChange,
+  onPaydayDayChange,
+}: Props) {
+  const filteredTransactions = filterTransactionsByPeriod(transactions, {
+    ...filter,
+    paydayDay,
+  });
   const totals = calculateTotals(filteredTransactions);
   const expenseByCategory = groupTransactionsByCategory(filteredTransactions, categories, 'expense');
   const budgetUsage = calculateBudgetUsage(filteredTransactions, categories);
@@ -30,8 +48,9 @@ export function Dashboard({ transactions, categories, filter, onFilterChange }: 
     { actual: 0, planned: 0 },
   );
   const expensePieGradient = buildPieGradient(expenseByCategory);
-  const dailyExpenseTrend = buildDailyExpenseTrend(transactions, filter.year, filter.month);
-  const weeklyExpenseTrend = buildWeeklyExpenseTrend(dailyExpenseTrend, filter.year, filter.month);
+  const monthlyPeriodRange = getMonthlyPeriodRange(filter.year, filter.month, paydayDay);
+  const dailyExpenseTrend = buildDailyExpenseTrend(transactions, monthlyPeriodRange);
+  const weeklyExpenseTrend = buildWeeklyExpenseTrend(dailyExpenseTrend);
   const monthlyTrend = Array.from({ length: 12 }, (_, index) => {
     const month = index + 1;
     const monthTransactions = filterTransactionsByPeriod(transactions, {
@@ -81,7 +100,7 @@ export function Dashboard({ transactions, categories, filter, onFilterChange }: 
             <h1>ภาพรวมเงินสด</h1>
           </div>
         </div>
-        <div className="filter-controls">
+        <div className="filter-controls dashboard-filter-controls" aria-label="ตัวกรองช่วงเวลา Dashboard">
           <select
             aria-label="รูปแบบช่วงเวลา"
             value={filter.type}
@@ -120,8 +139,33 @@ export function Dashboard({ transactions, categories, filter, onFilterChange }: 
               onChange={(event) => onFilterChange({ ...filter, year: Number(event.target.value) })}
             />
           )}
+          {filter.type === 'month' && (
+            <label className="payday-control">
+              วันเงินเดือนออก
+              <select
+                aria-label="วันเงินเดือนออก"
+                value={paydayDay}
+                onChange={(event) => {
+                  const nextDay = Number(event.target.value);
+                  if (!Number.isFinite(nextDay)) return;
+                  onPaydayDayChange?.(nextDay);
+                }}
+              >
+                {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => (
+                  <option key={day} value={day}>
+                    วันที่ {day}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
       </div>
+      {filter.type === 'month' && (
+        <p className="period-summary">
+          รอบเงินเดือน {formatDateWithoutYear(monthlyPeriodRange.start)} - {formatDateWithoutYear(monthlyPeriodRange.end)}
+        </p>
+      )}
 
       <div className="metric-grid">
         <MetricCard label="รายรับ" value={formatCurrency(totals.income)} tone="income" />
@@ -232,50 +276,70 @@ function parseDateInputValue(value: string): Pick<PeriodFilter, 'year' | 'month'
 
 function buildDailyExpenseTrend(
   transactions: Transaction[],
-  year: number,
-  month: number,
-): Array<{ day: number; expense: number }> {
-  const daysInMonth = new Date(year, month, 0).getDate();
+  range: { start: string; end: string },
+): DailyExpensePoint[] {
+  const startDate = parseISODate(range.start);
+  const endDate = parseISODate(range.end);
+  if (!startDate || !endDate) return [];
 
-  return Array.from({ length: daysInMonth }, (_, index) => {
-    const day = index + 1;
-    const dayTransactions = filterTransactionsByPeriod(transactions, {
-      type: 'day',
-      year,
-      month,
-      day,
-    });
+  const dailyData: DailyExpensePoint[] = [];
+  const currentDate = new Date(startDate);
+
+  while (currentDate <= endDate) {
+    const date = toISODate(currentDate);
+    const dayTransactions = transactions.filter((transaction) => transaction.date === date);
     const dayTotals = calculateTotals(dayTransactions);
 
-    return {
-      day,
+    dailyData.push({
+      date,
+      day: currentDate.getDate(),
       expense: dayTotals.expense,
-    };
-  });
+    });
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  return dailyData;
+}
+
+function formatDateWithoutYear(value: string): string {
+  if (!value) return '';
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return '';
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return new Intl.DateTimeFormat('th-TH', {
+    day: 'numeric',
+    month: 'short',
+  }).format(date);
 }
 
 function buildWeeklyExpenseTrend(
-  dailyData: Array<{ day: number; expense: number }>,
-  year: number,
-  month: number,
+  dailyData: DailyExpensePoint[],
 ): Array<{ label: string; expense: number }> {
   const weeks: Array<{ label: string; expense: number }> = [];
-  let startDay = 1;
+  let startIndex = 0;
 
-  while (startDay <= dailyData.length) {
-    const weekday = new Date(year, month - 1, startDay).getDay();
+  while (startIndex < dailyData.length) {
+    const startPoint = dailyData[startIndex];
+    const weekday = parseISODate(startPoint.date)?.getDay() ?? 1;
     const daysUntilSunday = weekday === 0 ? 0 : 7 - weekday;
-    const endDay = Math.min(startDay + daysUntilSunday, dailyData.length);
+    const endIndex = Math.min(startIndex + daysUntilSunday, dailyData.length - 1);
     const expense = dailyData
-      .slice(startDay - 1, endDay)
+      .slice(startIndex, endIndex + 1)
       .reduce((total, item) => total + item.expense, 0);
+    const endPoint = dailyData[endIndex];
 
     weeks.push({
-      label: `${startDay}-${endDay}`,
+      label: `${startPoint.day}-${endPoint.day}`,
       expense,
     });
 
-    startDay = endDay + 1;
+    startIndex = endIndex + 1;
   }
 
   return weeks;
@@ -298,7 +362,7 @@ function MonthlyExpenseTrendChart({
   dailyData,
   weeklyData,
 }: {
-  dailyData: Array<{ day: number; expense: number }>;
+  dailyData: DailyExpensePoint[];
   weeklyData: Array<{ label: string; expense: number }>;
 }) {
   const newestFirstData = [...dailyData].reverse();
@@ -363,6 +427,21 @@ function MonthlyExpenseTrendChart({
       )}
     </div>
   );
+}
+
+function parseISODate(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function toISODate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function YearTrendChart({

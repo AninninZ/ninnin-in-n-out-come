@@ -363,6 +363,33 @@ select {
   width: 204px;
 }
 
+.dashboard-filter-controls {
+  align-items: end;
+}
+
+.payday-control {
+  min-width: 150px;
+}
+
+.payday-control input {
+  width: 100%;
+}
+
+.period-summary {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 36px;
+  margin: calc(var(--space-6) * -0.5) 0 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  background: var(--color-primary-wash);
+  color: var(--color-primary-strong);
+  font-size: 0.9rem;
+  font-weight: 750;
+}
+
 input[type="color"] {
   width: 70px;
   padding: 4px;
@@ -922,6 +949,12 @@ th {
   border-radius: 999px;
 }
 
+.transaction-category-value {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
 .category-item {
   grid-template-columns: auto minmax(0, 1.3fr) minmax(88px, 0.65fr) minmax(96px, 0.75fr) auto;
   width: 100%;
@@ -1124,8 +1157,6 @@ th {
   .transaction-form > *,
   .category-form,
   .category-form > *,
-  .filter-controls,
-  .filter-controls > *,
   label,
   .wide {
     width: 100%;
@@ -1133,8 +1164,38 @@ th {
     flex-basis: auto;
   }
 
+  .filter-controls:not(.dashboard-filter-controls),
+  .filter-controls:not(.dashboard-filter-controls) > * {
+    width: 100%;
+    min-width: 0;
+    flex-basis: auto;
+  }
+
+  .dashboard-filter-controls {
+    display: grid;
+    grid-template-columns: minmax(104px, 0.85fr) minmax(126px, 1fr) minmax(86px, 0.7fr);
+    width: 100%;
+    gap: var(--space-2);
+  }
+
+  .dashboard-filter-controls > select,
+  .dashboard-filter-controls > input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .dashboard-filter-controls .payday-control {
+    grid-column: 1 / -1;
+    width: min(100%, 220px);
+    min-width: 0;
+  }
+
   .segmented {
     width: 100%;
+    min-width: 0;
+  }
+
+  .segmented button {
     min-width: 0;
   }
 
@@ -1191,7 +1252,10 @@ th {
     padding-right: 2px;
   }
 
-  .metric-grid,
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .analytics-grid,
   .split-grid,
   .settings-grid {
@@ -1231,9 +1295,53 @@ th {
   .panel-heading .secondary-button {
     width: 100%;
   }
+
+  .content {
+    padding: var(--space-4);
+    padding-bottom: calc(92px + env(safe-area-inset-bottom));
+  }
+
+  .dashboard-logo {
+    width: 48px;
+    height: 48px;
+  }
+
+  .metric-grid {
+    gap: var(--space-3);
+  }
+
+  .metric-card {
+    padding: var(--space-4);
+  }
+
+  .metric-card strong {
+    font-size: clamp(1.18rem, 5vw, 1.45rem);
+    overflow-wrap: anywhere;
+  }
+
+  .chart-box,
+  .trend-chart {
+    min-height: 240px;
+  }
+
+  .trend-bars {
+    min-height: 180px;
+  }
+
+  .weekly-trend-bars {
+    grid-template-columns: repeat(auto-fit, minmax(46px, 1fr));
+  }
+
+  .pie-summary {
+    min-height: 220px;
+  }
+
+  .css-pie {
+    width: min(180px, 70vw);
+  }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .table-wrap {
     overflow-x: visible;
   }
@@ -1254,7 +1362,8 @@ th {
 
   tr {
     display: grid;
-    gap: var(--space-2);
+    grid-template-columns: 1fr auto;
+    gap: var(--space-2) var(--space-3);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     padding: var(--space-3);
@@ -1272,6 +1381,33 @@ th {
     text-align: left;
   }
 
+  .transaction-type-cell,
+  .transaction-category-cell,
+  td[data-label="โน้ต"] {
+    grid-column: 1 / -1;
+  }
+
+  .transaction-type-cell,
+  td[data-label="จำนวนเงิน"] {
+    grid-template-columns: 1fr;
+  }
+
+  .transaction-type-cell::before,
+  td[data-label="จำนวนเงิน"]::before {
+    display: none;
+  }
+
+  .transaction-type-cell {
+    align-self: start;
+  }
+
+  td[data-label="จำนวนเงิน"] {
+    justify-items: end;
+    align-self: start;
+    grid-column: 2;
+    grid-row: 1;
+  }
+
   td::before {
     content: attr(data-label);
     color: var(--color-muted);
@@ -1281,6 +1417,10 @@ th {
 
   .amount-column {
     text-align: left;
+  }
+
+  td.amount-column {
+    text-align: right;
   }
 
   td:last-child {

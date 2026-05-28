@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultAppData } from './data/defaultData';
 import App from './App';
+import { saveAppData } from './storage/appStorage';
 
 const mocks = vi.hoisted(() => ({
   client: {
@@ -30,6 +31,7 @@ vi.mock('./storage/supabaseStorage', async (importOriginal) => ({
 describe('App Supabase flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     mocks.client.auth.onAuthStateChange.mockReturnValue({
       data: { subscription: { unsubscribe: vi.fn() } },
     });
@@ -81,5 +83,29 @@ describe('App Supabase flow', () => {
 
     expect(screen.getByRole('heading', { name: 'Supabase account' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'ออกจากระบบ' }).length).toBeGreaterThan(0);
+  });
+
+  it('keeps the locally selected payday day when remote data loads', async () => {
+    const session = {
+      user: { id: 'user-1', email: 'demo@example.com' },
+    };
+    saveAppData({
+      ...defaultAppData,
+      settings: {
+        ...defaultAppData.settings,
+        paydayDay: 25,
+      },
+    });
+    mocks.client.auth.getSession.mockResolvedValue({
+      data: { session },
+      error: null,
+    });
+    mocks.loadRemoteAppData.mockResolvedValue(defaultAppData);
+
+    render(<App />);
+
+    expect(await screen.findByText('demo@example.com')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'วันเงินเดือนออก' })).toHaveValue('25');
+    expect(screen.getByText('รอบเงินเดือน 25 พ.ค. - 24 มิ.ย.')).toBeInTheDocument();
   });
 });

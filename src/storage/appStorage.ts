@@ -1,5 +1,5 @@
 import { defaultAppData } from "../data/defaultData";
-import type { AppData } from "../types";
+import type { AppData, AppSettings } from "../types";
 
 export const STORAGE_KEY = "ninja-finance-v1";
 
@@ -24,6 +24,11 @@ export function saveAppData(
 export function normalizeAppData(data: unknown): AppData {
   if (!data || typeof data !== "object") return defaultAppData;
   const candidate = data as Partial<AppData>;
+  const candidateSettings: Partial<AppSettings> = candidate.settings ?? {};
+  const paydayDay =
+    typeof candidateSettings.paydayDay === "number"
+      ? Math.min(31, Math.max(1, Math.trunc(candidateSettings.paydayDay)))
+      : defaultAppData.settings.paydayDay;
 
   return {
     transactions: Array.isArray(candidate.transactions)
@@ -34,9 +39,10 @@ export function normalizeAppData(data: unknown): AppData {
       : defaultAppData.categories,
     settings: {
       ...defaultAppData.settings,
-      ...(candidate.settings ?? {}),
+      ...candidateSettings,
       currency: "THB",
       dateLocale: "th-TH",
+      paydayDay,
       schemaVersion: 1,
     },
   };

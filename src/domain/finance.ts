@@ -19,6 +19,11 @@ export type BudgetUsage = CategoryTotal & {
   percentUsed: number;
 };
 
+export type DateRange = {
+  start: string;
+  end: string;
+};
+
 export function todayISO(now = new Date()): string {
   return now.toISOString().slice(0, 10);
 }
@@ -35,6 +40,13 @@ export function filterTransactionsByPeriod(
   transactions: Transaction[],
   filter: PeriodFilter,
 ): Transaction[] {
+  if (filter.type === 'month' && filter.paydayDay && filter.paydayDay > 1) {
+    const range = getMonthlyPeriodRange(filter.year, filter.month, filter.paydayDay);
+    return transactions.filter(
+      (transaction) => transaction.date >= range.start && transaction.date <= range.end,
+    );
+  }
+
   return transactions.filter((transaction) => {
     const date = new Date(`${transaction.date}T00:00:00`);
     const yearMatches = date.getFullYear() === filter.year;
@@ -43,6 +55,27 @@ export function filterTransactionsByPeriod(
     if (filter.type === 'month') return yearMatches && monthMatches;
     return yearMatches && monthMatches && date.getDate() === filter.day;
   });
+}
+
+export function getMonthlyPeriodRange(year: number, month: number, paydayDay = 1): DateRange {
+  if (!Number.isFinite(year) || !Number.isFinite(month)) {
+    return {
+      start: '',
+      end: '',
+    };
+  }
+
+  const normalizedPaydayDay = Math.min(31, Math.max(1, Math.trunc(paydayDay)));
+  const start = createDateForDay(year, month, normalizedPaydayDay);
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextMonthYear = month === 12 ? year + 1 : year;
+  const nextStart = createDateForDay(nextMonthYear, nextMonth, normalizedPaydayDay);
+  nextStart.setDate(nextStart.getDate() - 1);
+
+  return {
+    start: toLocalISODate(start),
+    end: toLocalISODate(nextStart),
+  };
 }
 
 export function calculateTotals(transactions: Transaction[]): Totals {
@@ -145,4 +178,16 @@ export function validateTransactionInput(input: TransactionInput): string[] {
   if (!input.date) errors.push('กรุณาเลือกวันที่');
 
   return errors;
+}
+
+function createDateForDay(year: number, month: number, day: number): Date {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  return new Date(year, month - 1, Math.min(day, daysInMonth));
+}
+
+function toLocalISODate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
