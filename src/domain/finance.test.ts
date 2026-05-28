@@ -3,7 +3,10 @@ import type { Category, Transaction } from '../types';
 import {
   calculateBudgetUsage,
   calculateTotals,
+  filterTransactionsForList,
   filterTransactionsByPeriod,
+  getMonthlyFilterForDate,
+  getMonthlyPeriodRange,
   getSelectableCategories,
   groupTransactionsByCategory,
   sortTransactions,
@@ -124,10 +127,53 @@ describe('finance domain', () => {
     expect(result.map((transaction) => transaction.id)).toEqual(['t1', 't2', 't3', 't5']);
   });
 
+  it('builds a selected month from the previous payday through the day before that month payday', () => {
+    expect(getMonthlyPeriodRange(2026, 5, 25)).toEqual({
+      start: '2026-04-25',
+      end: '2026-05-24',
+    });
+  });
+
+  it('selects the next salary month once today reaches payday', () => {
+    expect(getMonthlyFilterForDate(new Date(2026, 4, 28), 25)).toMatchObject({
+      type: 'month',
+      year: 2026,
+      month: 6,
+    });
+  });
+
+  it('selects the next salary month without overflowing on a month-end payday', () => {
+    expect(getMonthlyFilterForDate(new Date(2026, 0, 31), 31)).toMatchObject({
+      type: 'month',
+      year: 2026,
+      month: 2,
+    });
+  });
+
   it('filters monthly transactions by payday cycle when a payday day is set', () => {
     const result = filterTransactionsByPeriod(
       [
         ...transactions,
+        {
+          id: 'before-cycle',
+          type: 'expense',
+          categoryId: 'food',
+          amount: 90,
+          date: '2026-04-24',
+          note: '',
+          createdAt: '2026-04-24T05:00:00.000Z',
+          updatedAt: '2026-04-24T05:00:00.000Z',
+        },
+        {
+          id: 'cycle-start',
+          type: 'income',
+          categoryId: 'salary',
+          amount: 30000,
+          date: '2026-04-25',
+          note: '',
+          createdAt: '2026-04-25T05:00:00.000Z',
+          updatedAt: '2026-04-25T05:00:00.000Z',
+        },
         {
           id: 'before-payday',
           type: 'expense',
@@ -139,7 +185,7 @@ describe('finance domain', () => {
           updatedAt: '2026-05-24T05:00:00.000Z',
         },
         {
-          id: 'cycle-start',
+          id: 'next-cycle-start',
           type: 'income',
           categoryId: 'salary',
           amount: 30000,
@@ -177,7 +223,14 @@ describe('finance domain', () => {
       },
     );
 
-    expect(result.map((transaction) => transaction.id)).toEqual(['t4', 'cycle-start', 'cycle-end']);
+    expect(result.map((transaction) => transaction.id)).toEqual([
+      't1',
+      't2',
+      't3',
+      't5',
+      'cycle-start',
+      'before-payday',
+    ]);
   });
 
   it('filters transactions by day when a daily dashboard view is selected', () => {
@@ -199,6 +252,21 @@ describe('finance domain', () => {
     });
 
     expect(result).toHaveLength(5);
+  });
+
+  it('filters transaction lists by date, month, year, and category', () => {
+    const result = filterTransactionsForList(transactions, {
+      date: '2026-05-02',
+      month: 5,
+      year: 2026,
+      categoryId: 'food',
+    });
+
+    expect(result.map((transaction) => transaction.id)).toEqual(['t2']);
+  });
+
+  it('leaves transaction lists unchanged when no list filters are selected', () => {
+    expect(filterTransactionsForList(transactions, {})).toEqual(transactions);
   });
 
   it('groups expenses by category and keeps old inactive categories reportable', () => {
@@ -264,6 +332,69 @@ describe('finance domain', () => {
       remaining: 500,
       percentUsed: 94,
     });
+  });
+
+  it('keeps the planned budget at zero for active expense categories without a monthly budget', () => {
+    const unbudgetedCategory: Category = {
+      id: 'coffee',
+      name: 'กาแฟ',
+      type: 'expense',
+      color: '#92400e',
+      isActive: true,
+    };
+    const result = calculateBudgetUsage(
+      [
+        ...transactions,
+        {
+          id: 'coffee-1',
+          type: 'expense',
+          categoryId: 'coffee',
+          amount: 300,
+          date: '2026-05-05',
+          note: '',
+          createdAt: '2026-05-05T05:00:00.000Z',
+          updatedAt: '2026-05-05T05:00:00.000Z',
+        },
+      ],
+      [...categories, unbudgetedCategory],
+    );
+
+    expect(result.find((item) => item.category.id === 'coffee')).toMatchObject({
+      amount: 300,
+      budget: 0,
+      remaining: -300,
+      percentUsed: 0,
+    });
+  });
+
+  it('sorts budget usage by actual expense amount instead of percent used', () => {
+    const result = calculateBudgetUsage(
+      [
+        {
+          id: 'large-planned',
+          type: 'expense',
+          categoryId: 'rent',
+          amount: 7500,
+          date: '2026-05-05',
+          note: '',
+          createdAt: '2026-05-05T05:00:00.000Z',
+          updatedAt: '2026-05-05T05:00:00.000Z',
+        },
+        {
+          id: 'small-over-budget',
+          type: 'expense',
+          categoryId: 'food',
+          amount: 7000,
+          date: '2026-05-05',
+          note: '',
+          createdAt: '2026-05-05T05:01:00.000Z',
+          updatedAt: '2026-05-05T05:01:00.000Z',
+        },
+      ],
+      categories,
+    );
+
+    expect(result.map((item) => item.category.id).slice(0, 2)).toEqual(['rent', 'food']);
   });
 
   it('excludes inactive categories from budget usage', () => {

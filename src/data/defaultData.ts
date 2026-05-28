@@ -112,6 +112,7 @@ export const defaultAppData: AppData = {
     currency: 'THB',
     dateLocale: 'th-TH',
     paydayDay: 1,
+    transactionPageSize: 5,
     schemaVersion: 1,
   },
 };

@@ -1,7 +1,8 @@
 import { defaultAppData } from "../data/defaultData";
-import type { AppData, AppSettings } from "../types";
+import type { AppData, AppSettings, TransactionPageSize } from "../types";
 
 export const STORAGE_KEY = "ninja-finance-v1";
+const transactionPageSizeOptions: TransactionPageSize[] = [5, 10, 20];
 
 export function loadAppData(storage: Storage = window.localStorage): AppData {
   const rawData = storage.getItem(STORAGE_KEY);
@@ -29,6 +30,11 @@ export function normalizeAppData(data: unknown): AppData {
     typeof candidateSettings.paydayDay === "number"
       ? Math.min(31, Math.max(1, Math.trunc(candidateSettings.paydayDay)))
       : defaultAppData.settings.paydayDay;
+  const transactionPageSize = transactionPageSizeOptions.includes(
+    candidateSettings.transactionPageSize as TransactionPageSize,
+  )
+    ? (candidateSettings.transactionPageSize as TransactionPageSize)
+    : defaultAppData.settings.transactionPageSize;
 
   return {
     transactions: Array.isArray(candidate.transactions)
@@ -43,6 +49,7 @@ export function normalizeAppData(data: unknown): AppData {
       currency: "THB",
       dateLocale: "th-TH",
       paydayDay,
+      transactionPageSize,
       schemaVersion: 1,
     },
   };

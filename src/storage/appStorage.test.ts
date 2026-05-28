@@ -30,4 +30,35 @@ describe('app storage normalization', () => {
 
     expect(data.settings.paydayDay).toBe(25);
   });
+
+  it('adds the default transaction page size when existing saved data has older settings', () => {
+    const data = normalizeAppData({
+      transactions: [],
+      categories: [],
+      settings: {
+        currency: 'THB',
+        dateLocale: 'th-TH',
+        paydayDay: 25,
+        schemaVersion: 1,
+      },
+    });
+
+    expect(data.settings.transactionPageSize).toBe(5);
+  });
+
+  it('keeps a supported transaction page size from imported data', () => {
+    const data = normalizeAppData({
+      transactions: [],
+      categories: [],
+      settings: {
+        currency: 'THB',
+        dateLocale: 'th-TH',
+        paydayDay: 25,
+        transactionPageSize: 20,
+        schemaVersion: 1,
+      },
+    });
+
+    expect(data.settings.transactionPageSize).toBe(20);
+  });
 });

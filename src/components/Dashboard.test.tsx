@@ -169,9 +169,9 @@ describe('Dashboard', () => {
       />,
     );
 
-    expect(screen.getByText('รอบเงินเดือน 25 พ.ค. - 24 มิ.ย.')).toBeInTheDocument();
+    expect(screen.getByText('รอบเงินเดือน 25 เม.ย. - 24 พ.ค.')).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'วันเงินเดือนออก' })).toHaveValue('25');
-    expect(screen.getByLabelText('รายจ่าย ฿1,200')).toBeInTheDocument();
+    expect(screen.getByLabelText('รายจ่าย ฿2,150')).toBeInTheDocument();
 
     fireEvent.change(screen.getByRole('combobox', { name: 'วันเงินเดือนออก' }), { target: { value: '28' } });
 
@@ -190,6 +190,49 @@ describe('Dashboard', () => {
 
     expect(screen.getByLabelText('รายจ่ายจริง ฿1,250')).toBeInTheDocument();
     expect(screen.getByLabelText('งบประมาณการ ฿25,500')).toBeInTheDocument();
+  });
+
+  it('shows categories with actual expenses even when no budget is configured', () => {
+    render(
+      <Dashboard
+        transactions={[
+          ...transactions,
+          {
+            id: 'coffee-may',
+            type: 'expense',
+            categoryId: 'coffee',
+            amount: 300,
+            date: '2026-05-20',
+            note: '',
+            createdAt: '2026-05-20T00:00:00.000Z',
+            updatedAt: '2026-05-20T00:00:00.000Z',
+          },
+        ]}
+        categories={[
+          ...defaultCategories,
+          {
+            id: 'coffee',
+            name: 'กาแฟ',
+            type: 'expense',
+            color: '#92400e',
+            isActive: true,
+          },
+        ]}
+        filter={{ type: 'month', year: 2026, month: 5 }}
+        onFilterChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText('รายจ่ายจริง ฿1,550')).toBeInTheDocument();
+    expect(screen.getByLabelText('งบประมาณการ ฿25,500')).toBeInTheDocument();
+    expect(screen.getAllByText('กาแฟ').length).toBeGreaterThan(0);
+    expect(screen.getByText('฿300 / ฿0')).toBeInTheDocument();
+    expect(screen.getByText('+฿300')).toBeInTheDocument();
+    expect(screen.queryByLabelText('กาแฟ ใช้งบไป 0%')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('กาแฟ นอกแผน +฿300')).toHaveStyle({
+      width: '100%',
+      background: '#dc2626',
+    });
   });
 
   it('uses a weekly expense bar chart when the dashboard is filtered by month', () => {

@@ -1,15 +1,20 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { defaultAppData } from "./data/defaultData";
 import { STORAGE_KEY } from "./storage/appStorage";
 
 describe("App smoke flow", () => {
   beforeEach(() => {
+    vi.useRealTimers();
     vi.stubEnv("VITE_SUPABASE_URL", "");
     vi.stubEnv("VITE_SUPABASE_ANON_KEY", "");
     window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("adds a category, records a backdated expense, and reflects it in the dashboard", async () => {
@@ -23,15 +28,16 @@ describe("App smoke flow", () => {
     await user.click(screen.getByRole("button", { name: "บันทึกหมวดหมู่" }));
 
     await user.click(screen.getByRole("button", { name: "รายการ" }));
+    const addTransactionForm = screen.getByRole("form", { name: "เพิ่มรายการ" });
     await user.selectOptions(
-      screen.getByLabelText("หมวดหมู่"),
-      screen.getByRole("option", { name: "กาแฟ" }),
+      within(addTransactionForm).getByLabelText("หมวดหมู่"),
+      within(addTransactionForm).getByRole("option", { name: "กาแฟ" }),
     );
-    await user.type(screen.getByLabelText("จำนวนเงิน"), "85");
-    await user.clear(screen.getByLabelText("วันที่"));
-    await user.type(screen.getByLabelText("วันที่"), "2026-05-10");
-    await user.type(screen.getByLabelText("โน้ต"), "ลาเต้");
-    await user.click(screen.getByRole("button", { name: "เพิ่มรายการ" }));
+    await user.type(within(addTransactionForm).getByLabelText("จำนวนเงิน"), "85");
+    await user.clear(within(addTransactionForm).getByLabelText("วันที่"));
+    await user.type(within(addTransactionForm).getByLabelText("วันที่"), "2026-05-10");
+    await user.type(within(addTransactionForm).getByLabelText("โน้ต"), "ลาเต้");
+    await user.click(within(addTransactionForm).getByRole("button", { name: "เพิ่มรายการ" }));
 
     const table = screen.getByRole("table");
     expect(within(table).getByText("กาแฟ")).toBeInTheDocument();
@@ -65,7 +71,7 @@ describe("App smoke flow", () => {
 
     await user.click(screen.getByRole("button", { name: "รายการ" }));
     await user.click(screen.getByRole("button", { name: "ออมเงิน" }));
-    await user.selectOptions(screen.getByLabelText("หมวดหมู่"), screen.getByRole("option", { name: "เงินออม" }));
+    await user.selectOptions(screen.getByLabelText("หมวดหมู่"), "savings");
     await user.type(screen.getByLabelText("จำนวนเงิน"), "2500");
     await user.clear(screen.getByLabelText("วันที่"));
     await user.type(screen.getByLabelText("วันที่"), "2026-05-05");
@@ -99,6 +105,26 @@ describe("App smoke flow", () => {
     expect(screen.getByText("รอบเงินเดือน 25 พ.ค. - 24 มิ.ย.")).toBeInTheDocument();
   });
 
+  it("opens on the next salary month after the saved payday has passed", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 4, 28));
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...defaultAppData,
+        settings: {
+          ...defaultAppData.settings,
+          paydayDay: 25,
+        },
+      }),
+    );
+
+    render(<App />);
+
+    expect(screen.getByLabelText("เดือน")).toHaveValue("6");
+    expect(screen.getByText("รอบเงินเดือน 25 พ.ค. - 24 มิ.ย.")).toBeInTheDocument();
+  });
+
   it("requires confirmation before deleting a transaction", async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -111,6 +137,32 @@ describe("App smoke flow", () => {
 
     await user.click(screen.getByRole("button", { name: "ยืนยัน" }));
     expect(screen.queryByText("กาแฟและน้ำดื่ม")).not.toBeInTheDocument();
+  });
+
+  it("edits a transaction category, note, and amount", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "รายการ" }));
+    await user.click(screen.getByRole("button", { name: "แก้ไข กาแฟและน้ำดื่ม" }));
+
+    const editForm = screen.getByRole("form", { name: "แก้ไขรายการ กาแฟและน้ำดื่ม" });
+    await user.selectOptions(
+      within(editForm).getByLabelText("หมวดหมู่"),
+      within(editForm).getByRole("option", { name: "ค่าอาหาร" }),
+    );
+    await user.clear(within(editForm).getByLabelText("จำนวนเงิน"));
+    await user.type(within(editForm).getByLabelText("จำนวนเงิน"), "150");
+    await user.clear(within(editForm).getByLabelText("โน้ต"));
+    await user.type(within(editForm).getByLabelText("โน้ต"), "กาแฟแก้ไข");
+    await user.click(within(editForm).getByRole("button", { name: "บันทึกการแก้ไข" }));
+
+    const table = screen.getByRole("table");
+    const updatedRow = within(table).getByText("กาแฟแก้ไข").closest("tr");
+    expect(updatedRow).not.toBeNull();
+    expect(within(updatedRow as HTMLTableRowElement).getByText("ค่าอาหาร")).toBeInTheDocument();
+    expect(within(updatedRow as HTMLTableRowElement).getByText("฿150")).toBeInTheDocument();
+    expect(window.localStorage.getItem(STORAGE_KEY)).toContain("กาแฟแก้ไข");
   });
 
   it("paginates the transaction list and lets users change page size", async () => {
@@ -152,6 +204,107 @@ describe("App smoke flow", () => {
     expect(screen.queryByText("รายการที่ 02")).not.toBeInTheDocument();
   });
 
+  it("remembers the selected transaction page size when returning to the list", async () => {
+    const transactions = Array.from({ length: 12 }, (_, index) => {
+      const day = String(index + 1).padStart(2, "0");
+
+      return {
+        id: `tx-${day}`,
+        type: "expense" as const,
+        categoryId: "food",
+        amount: index + 1,
+        date: `2026-05-${day}`,
+        note: `รายการที่ ${day}`,
+        createdAt: `2026-05-${day}T02:00:00.000Z`,
+        updatedAt: `2026-05-${day}T02:00:00.000Z`,
+      };
+    });
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...defaultAppData, transactions }));
+    const user = userEvent.setup();
+    const { unmount } = render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "รายการ" }));
+    await user.selectOptions(screen.getByLabelText("จำนวนรายการต่อหน้า"), "10");
+    await user.click(screen.getByRole("button", { name: "Dashboard" }));
+    await user.click(screen.getByRole("button", { name: "รายการ" }));
+
+    expect(screen.getByLabelText("จำนวนรายการต่อหน้า")).toHaveValue("10");
+    expect(screen.getByText("หน้า 1 จาก 2")).toBeInTheDocument();
+
+    unmount();
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "รายการ" }));
+
+    expect(screen.getByLabelText("จำนวนรายการต่อหน้า")).toHaveValue("10");
+    expect(screen.getByText("หน้า 1 จาก 2")).toBeInTheDocument();
+  });
+
+  it("filters transactions by date, month, year, and category", async () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...defaultAppData,
+        transactions: [
+          {
+            id: "filter-match",
+            type: "expense",
+            categoryId: "food",
+            amount: 120,
+            date: "2026-05-10",
+            note: "รายการที่ตรง filter",
+            createdAt: "2026-05-10T02:00:00.000Z",
+            updatedAt: "2026-05-10T02:00:00.000Z",
+          },
+          {
+            id: "wrong-day",
+            type: "expense",
+            categoryId: "food",
+            amount: 95,
+            date: "2026-05-11",
+            note: "คนละวัน",
+            createdAt: "2026-05-11T02:00:00.000Z",
+            updatedAt: "2026-05-11T02:00:00.000Z",
+          },
+          {
+            id: "wrong-month",
+            type: "expense",
+            categoryId: "food",
+            amount: 80,
+            date: "2026-06-10",
+            note: "คนละเดือน",
+            createdAt: "2026-06-10T02:00:00.000Z",
+            updatedAt: "2026-06-10T02:00:00.000Z",
+          },
+          {
+            id: "wrong-category",
+            type: "expense",
+            categoryId: "rent",
+            amount: 7500,
+            date: "2026-05-10",
+            note: "คนละหมวด",
+            createdAt: "2026-05-10T03:00:00.000Z",
+            updatedAt: "2026-05-10T03:00:00.000Z",
+          },
+        ],
+      }),
+    );
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "รายการ" }));
+    await user.type(screen.getByLabelText("กรองวันที่"), "2026-05-10");
+    await user.selectOptions(screen.getByLabelText("กรองเดือน"), "5");
+    await user.clear(screen.getByLabelText("กรองปี"));
+    await user.type(screen.getByLabelText("กรองปี"), "2026");
+    await user.selectOptions(screen.getByLabelText("กรองหมวดหมู่"), "food");
+
+    expect(screen.getByText("รายการที่ตรง filter")).toBeInTheDocument();
+    expect(screen.queryByText("คนละวัน")).not.toBeInTheDocument();
+    expect(screen.queryByText("คนละเดือน")).not.toBeInTheDocument();
+    expect(screen.queryByText("คนละหมวด")).not.toBeInTheDocument();
+    expect(screen.getByText("แสดง 1-1 จาก 1 รายการ")).toBeInTheDocument();
+  });
+
   it("marks transaction cells for compact mobile reading", async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -160,7 +313,7 @@ describe("App smoke flow", () => {
     await user.click(screen.getByRole("button", { name: "ออมเงิน" }));
     await user.selectOptions(
       screen.getByLabelText("หมวดหมู่"),
-      screen.getByRole("option", { name: "เงินออม" }),
+      "savings",
     );
     await user.type(screen.getByLabelText("จำนวนเงิน"), "2500");
     await user.type(screen.getByLabelText("โน้ต"), "เงินสำรอง");
@@ -181,7 +334,7 @@ describe("App smoke flow", () => {
     render(<App />);
 
     await user.click(screen.getByRole("button", { name: "รายการ" }));
-    await user.selectOptions(screen.getByLabelText("หมวดหมู่"), screen.getByRole("option", { name: "ค่าอาหาร" }));
+    await user.selectOptions(screen.getByLabelText("หมวดหมู่"), "food");
     await user.type(screen.getByLabelText("จำนวนเงิน"), "42");
     await user.type(screen.getByLabelText("โน้ต"), "ทดสอบ reset");
     await user.click(screen.getByRole("button", { name: "เพิ่มรายการ" }));

@@ -1,6 +1,7 @@
 export type TransactionType = "income" | "expense" | "savings";
 export type CategoryType = TransactionType | "both";
 export type PeriodType = "day" | "month" | "year";
+export type TransactionPageSize = 5 | 10 | 20;
 
 export type Transaction = {
   id: string;
@@ -26,6 +27,7 @@ export type AppSettings = {
   currency: "THB";
   dateLocale: "th-TH";
   paydayDay: number;
+  transactionPageSize: TransactionPageSize;
   schemaVersion: 1;
 };
 
@@ -41,6 +43,13 @@ export type PeriodFilter = {
   month: number;
   day?: number;
   paydayDay?: number;
+};
+
+export type TransactionListFilter = {
+  date?: string;
+  month?: number;
+  year?: number;
+  categoryId?: string;
 };
 
 export type TransactionInput = {

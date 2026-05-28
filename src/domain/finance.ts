@@ -1,4 +1,11 @@
-import type { Category, PeriodFilter, Transaction, TransactionInput, TransactionType } from '../types';
+import type {
+  Category,
+  PeriodFilter,
+  Transaction,
+  TransactionInput,
+  TransactionListFilter,
+  TransactionType,
+} from '../types';
 
 export type Totals = {
   income: number;
@@ -57,6 +64,22 @@ export function filterTransactionsByPeriod(
   });
 }
 
+export function filterTransactionsForList(
+  transactions: Transaction[],
+  filter: TransactionListFilter,
+): Transaction[] {
+  return transactions.filter((transaction) => {
+    if (filter.date && transaction.date !== filter.date) return false;
+    if (filter.categoryId && transaction.categoryId !== filter.categoryId) return false;
+
+    const [year, month] = transaction.date.split('-').map(Number);
+    if (filter.year && year !== filter.year) return false;
+    if (filter.month && month !== filter.month) return false;
+
+    return true;
+  });
+}
+
 export function getMonthlyPeriodRange(year: number, month: number, paydayDay = 1): DateRange {
   if (!Number.isFinite(year) || !Number.isFinite(month)) {
     return {
@@ -66,15 +89,47 @@ export function getMonthlyPeriodRange(year: number, month: number, paydayDay = 1
   }
 
   const normalizedPaydayDay = Math.min(31, Math.max(1, Math.trunc(paydayDay)));
-  const start = createDateForDay(year, month, normalizedPaydayDay);
-  const nextMonth = month === 12 ? 1 : month + 1;
-  const nextMonthYear = month === 12 ? year + 1 : year;
-  const nextStart = createDateForDay(nextMonthYear, nextMonth, normalizedPaydayDay);
-  nextStart.setDate(nextStart.getDate() - 1);
+  if (normalizedPaydayDay === 1) {
+    const start = createDateForDay(year, month, 1);
+    const nextMonth = month === 12 ? 1 : month + 1;
+    const nextMonthYear = month === 12 ? year + 1 : year;
+    const end = createDateForDay(nextMonthYear, nextMonth, 1);
+    end.setDate(end.getDate() - 1);
+
+    return {
+      start: toLocalISODate(start),
+      end: toLocalISODate(end),
+    };
+  }
+
+  const previousMonth = month === 1 ? 12 : month - 1;
+  const previousMonthYear = month === 1 ? year - 1 : year;
+  const start = createDateForDay(previousMonthYear, previousMonth, normalizedPaydayDay);
+  const end = createDateForDay(year, month, normalizedPaydayDay);
+  end.setDate(end.getDate() - 1);
 
   return {
     start: toLocalISODate(start),
-    end: toLocalISODate(nextStart),
+    end: toLocalISODate(end),
+  };
+}
+
+export function getMonthlyFilterForDate(date: Date, paydayDay = 1): PeriodFilter {
+  const normalizedPaydayDay = Math.min(31, Math.max(1, Math.trunc(paydayDay)));
+  const currentYear = date.getFullYear();
+  const currentMonth = date.getMonth() + 1;
+  const nextMonth = currentMonth === 12 ? 1 : currentMonth + 1;
+  const nextMonthYear = currentMonth === 12 ? currentYear + 1 : currentYear;
+  const shouldUseNextMonth = normalizedPaydayDay > 1 && date.getDate() >= normalizedPaydayDay;
+
+  const selectedYear = shouldUseNextMonth ? nextMonthYear : currentYear;
+  const selectedMonth = shouldUseNextMonth ? nextMonth : currentMonth;
+
+  return {
+    type: 'month',
+    year: selectedYear,
+    month: selectedMonth,
+    day: date.getDate(),
   };
 }
 
@@ -136,12 +191,16 @@ export function calculateBudgetUsage(
   categories: Category[],
 ): BudgetUsage[] {
   const expenseTotals = groupTransactionsByCategory(transactions, categories, 'expense');
+  const expenseTotalByCategoryId = new Map(
+    expenseTotals.map((total) => [total.category.id, total]),
+  );
 
   return categories
     .filter((category) => category.isActive)
-    .filter((category) => (category.type === 'expense' || category.type === 'both') && typeof category.monthlyBudget === 'number')
+    .filter((category) => category.type === 'expense' || category.type === 'both')
+    .filter((category) => typeof category.monthlyBudget === 'number' || expenseTotalByCategoryId.has(category.id))
     .map((category) => {
-      const usage = expenseTotals.find((total) => total.category.id === category.id);
+      const usage = expenseTotalByCategoryId.get(category.id);
       const amount = usage?.amount ?? 0;
       const budget = category.monthlyBudget ?? 0;
       const percentUsed = budget > 0 ? Math.round((amount / budget) * 100) : 0;
@@ -155,7 +214,7 @@ export function calculateBudgetUsage(
         percentUsed,
       };
     })
-    .sort((left, right) => right.percentUsed - left.percentUsed);
+    .sort((left, right) => right.amount - left.amount);
 }
 
 export function getSelectableCategories(

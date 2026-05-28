@@ -227,30 +227,43 @@ export function Dashboard({
           </div>
         </div>
         <div className="budget-list">
-          {budgetUsage.map((item) => (
-            <div className="budget-row" key={item.category.id}>
-              <div>
-                <strong>{item.category.name}</strong>
-                <span>
-                  {formatCurrency(item.amount)} / {formatCurrency(item.budget)}
-                </span>
+          {budgetUsage.map((item) => {
+            const isUnplannedExpense = item.budget === 0 && item.amount > 0;
+            const progressValue = isUnplannedExpense ? 100 : Math.min(item.percentUsed, 100);
+            const budgetStatusLabel = isUnplannedExpense
+              ? `+${formatCurrency(item.amount)}`
+              : `${item.percentUsed}%`;
+            const progressLabel = isUnplannedExpense
+              ? `${item.category.name} นอกแผน ${budgetStatusLabel}`
+              : `${item.category.name} ใช้งบไป ${item.percentUsed}%`;
+
+            return (
+              <div className="budget-row" key={item.category.id}>
+                <div>
+                  <strong>{item.category.name}</strong>
+                  <span>
+                    {formatCurrency(item.amount)} / {formatCurrency(item.budget)}
+                  </span>
+                </div>
+                <div className="progress">
+                  <span
+                    role="progressbar"
+                    aria-label={progressLabel}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={progressValue}
+                    style={{
+                      width: `${progressValue}%`,
+                      background: isUnplannedExpense || item.percentUsed > 100 ? '#dc2626' : item.category.color,
+                    }}
+                  />
+                </div>
+                <strong className={isUnplannedExpense ? 'budget-status overrun' : undefined}>
+                  {budgetStatusLabel}
+                </strong>
               </div>
-              <div className="progress" aria-label={`${item.category.name} ใช้ไป ${item.percentUsed}%`}>
-                <span
-                  role="progressbar"
-                  aria-label={`${item.category.name} ใช้งบไป ${item.percentUsed}%`}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={Math.min(item.percentUsed, 100)}
-                  style={{
-                    width: `${Math.min(item.percentUsed, 100)}%`,
-                    background: item.percentUsed > 100 ? '#dc2626' : item.category.color,
-                  }}
-                />
-              </div>
-              <strong>{item.percentUsed}%</strong>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

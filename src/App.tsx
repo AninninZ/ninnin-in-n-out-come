@@ -3,19 +3,29 @@ import {
   LayoutDashboard,
   ListPlus,
   LogOut,
+  Pencil,
   RotateCcw,
+  Save,
   Settings,
   Tags,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import type { ChangeEvent, ElementType, FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TransactionForm } from "./components/TransactionForm";
 import { defaultAppData } from "./data/defaultData";
-import { sortTransactions, todayISO } from "./domain/finance";
-import { formatCurrency, formatDate } from "./format";
+import {
+  getMonthlyFilterForDate,
+  getSelectableCategories,
+  filterTransactionsForList,
+  sortTransactions,
+  todayISO,
+  validateTransactionInput,
+} from "./domain/finance";
+import { formatCurrency, formatDate, getMonthName } from "./format";
 import {
   loadAppData,
   normalizeAppData,
@@ -37,6 +47,8 @@ import type {
   PeriodFilter,
   Transaction,
   TransactionInput,
+  TransactionListFilter,
+  TransactionPageSize,
 } from "./types";
 import { Dashboard } from "./components/Dashboard";
 
@@ -48,14 +60,6 @@ type SyncState =
   | { mode: "remote"; client: SupabaseClient; session: Session };
 
 const appLogoPath = "/assets/nin-jah-ma-jod-logo.png";
-const currentDate = new Date();
-
-const initialFilter: PeriodFilter = {
-  type: "month",
-  year: currentDate.getFullYear(),
-  month: currentDate.getMonth() + 1,
-  day: currentDate.getDate(),
-};
 
 const navItems: Array<{ page: Page; label: string; icon: ElementType }> = [
   { page: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -64,7 +68,7 @@ const navItems: Array<{ page: Page; label: string; icon: ElementType }> = [
   { page: "settings", label: "Settings", icon: Settings },
 ];
 
-const transactionPageSizeOptions = [5, 10, 20];
+const transactionPageSizeOptions: TransactionPageSize[] = [5, 10, 20];
 
 function getTransactionTypeLabel(type: Transaction["type"]): string {
   if (type === "income") return "รายรับ";
@@ -75,7 +79,9 @@ function getTransactionTypeLabel(type: Transaction["type"]): string {
 export default function App() {
   const [activePage, setActivePage] = useState<Page>("dashboard");
   const [data, setData] = useState<AppData>(() => loadAppData());
-  const [filter, setFilter] = useState(initialFilter);
+  const [filter, setFilter] = useState<PeriodFilter>(() =>
+    getMonthlyFilterForDate(new Date(), data.settings.paydayDay),
+  );
   const [syncState, setSyncState] = useState<SyncState>(() => {
     const client = getSupabaseClient();
     return client ? { mode: "checking" } : { mode: "local" };
@@ -200,6 +206,20 @@ export default function App() {
     });
   }
 
+  function updateTransactionPageSize(transactionPageSize: TransactionPageSize) {
+    setData((current) => {
+      const nextData = {
+        ...current,
+        settings: {
+          ...current.settings,
+          transactionPageSize,
+        },
+      };
+      saveAppData(nextData);
+      return nextData;
+    });
+  }
+
   async function addTransaction(input: TransactionInput) {
     const timestamp = new Date().toISOString();
     const transaction: Transaction = {
@@ -236,6 +256,34 @@ export default function App() {
         (transaction) => transaction.id !== id,
       ),
     }));
+  }
+
+  async function updateTransaction(id: string, input: TransactionInput) {
+    const existingTransaction = data.transactions.find((transaction) => transaction.id === id);
+    if (!existingTransaction) return false;
+
+    const transaction: Transaction = {
+      ...existingTransaction,
+      ...input,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (syncState.mode === "remote") {
+      const saved = await persistRemote((client, userId) =>
+        upsertRemoteTransaction(client, userId, transaction),
+      );
+      if (!saved) return false;
+    }
+
+    setData((current) => ({
+      ...current,
+      transactions: sortTransactions(
+        current.transactions.map((currentTransaction) =>
+          currentTransaction.id === id ? transaction : currentTransaction,
+        ),
+      ),
+    }));
+    return true;
   }
 
   async function upsertCategory(category: Category) {
@@ -378,9 +426,12 @@ export default function App() {
           <TransactionsPage
             categories={data.categories}
             categoryById={categoryById}
+            pageSize={data.settings.transactionPageSize}
             transactions={data.transactions}
             onAddTransaction={addTransaction}
             onDeleteTransaction={deleteTransaction}
+            onUpdateTransaction={updateTransaction}
+            onPageSizeChange={updateTransactionPageSize}
           />
         )}
         {activePage === "categories" && (
@@ -555,29 +606,43 @@ function AuthPage({
 function TransactionsPage({
   categories,
   categoryById,
+  pageSize,
   transactions,
   onAddTransaction,
   onDeleteTransaction,
+  onUpdateTransaction,
+  onPageSizeChange,
 }: {
   categories: Category[];
   categoryById: Map<string, Category>;
+  pageSize: TransactionPageSize;
   transactions: Transaction[];
   onAddTransaction: (input: TransactionInput) => void | Promise<void>;
   onDeleteTransaction: (id: string) => void | Promise<void>;
+  onUpdateTransaction: (id: string, input: TransactionInput) => boolean | Promise<boolean>;
+  onPageSizeChange: (pageSize: TransactionPageSize) => void;
 }) {
-  const sortedTransactions = sortTransactions(transactions);
+  const [listFilter, setListFilter] = useState<TransactionListFilter>({});
+  const filteredTransactions = sortTransactions(filterTransactionsForList(transactions, listFilter));
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(transactionPageSizeOptions[0]);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
   const totalPages = Math.max(
     1,
-    Math.ceil(sortedTransactions.length / pageSize),
+    Math.ceil(filteredTransactions.length / pageSize),
   );
   const currentPage = Math.min(page, totalPages);
-  const visibleTransactions = sortedTransactions.slice(
+  const visibleTransactions = filteredTransactions.slice(
     (currentPage - 1) * pageSize,
     currentPage * pageSize,
   );
+
+  function updateListFilter(nextFilter: TransactionListFilter) {
+    setListFilter(nextFilter);
+    setEditingTransactionId(null);
+    setPendingDeleteId(null);
+    setPage(1);
+  }
 
   return (
     <section className="page-stack" aria-label="รายการ">
@@ -597,9 +662,9 @@ function TransactionsPage({
           <div>
             <h2>รายการล่าสุด</h2>
             <p className="panel-subtitle">
-              {sortedTransactions.length === 0
-                ? "ยังไม่มีรายการ"
-                : `แสดง ${(currentPage - 1) * pageSize + 1}-${Math.min(currentPage * pageSize, sortedTransactions.length)} จาก ${sortedTransactions.length} รายการ`}
+              {filteredTransactions.length === 0
+                ? "ไม่พบรายการที่ตรงกับ filter"
+                : `แสดง ${(currentPage - 1) * pageSize + 1}-${Math.min(currentPage * pageSize, filteredTransactions.length)} จาก ${filteredTransactions.length} รายการ`}
             </p>
           </div>
           <label className="page-size-control">
@@ -607,13 +672,84 @@ function TransactionsPage({
             <select
               value={pageSize}
               onChange={(event) => {
-                setPageSize(Number(event.target.value));
+                const selectedPageSize = Number(event.target.value) as TransactionPageSize;
+                onPageSizeChange(selectedPageSize);
                 setPage(1);
               }}
             >
               {transactionPageSizeOptions.map((option) => (
                 <option key={option} value={option}>
                   {option}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="transaction-filter-controls" aria-label="ตัวกรองรายการ">
+          <label>
+            กรองวันที่
+            <input
+              aria-label="กรองวันที่"
+              type="date"
+              value={listFilter.date ?? ""}
+              onChange={(event) =>
+                updateListFilter({
+                  ...listFilter,
+                  date: event.target.value || undefined,
+                })
+              }
+            />
+          </label>
+          <label>
+            กรองเดือน
+            <select
+              aria-label="กรองเดือน"
+              value={listFilter.month ?? ""}
+              onChange={(event) =>
+                updateListFilter({
+                  ...listFilter,
+                  month: event.target.value ? Number(event.target.value) : undefined,
+                })
+              }
+            >
+              <option value="">ทุกเดือน</option>
+              {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+                <option key={month} value={month}>
+                  {getMonthName(month)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            กรองปี
+            <input
+              aria-label="กรองปี"
+              type="number"
+              value={listFilter.year ?? ""}
+              onChange={(event) =>
+                updateListFilter({
+                  ...listFilter,
+                  year: event.target.value ? Number(event.target.value) : undefined,
+                })
+              }
+            />
+          </label>
+          <label>
+            กรองหมวดหมู่
+            <select
+              aria-label="กรองหมวดหมู่"
+              value={listFilter.categoryId ?? ""}
+              onChange={(event) =>
+                updateListFilter({
+                  ...listFilter,
+                  categoryId: event.target.value || undefined,
+                })
+              }
+            >
+              <option value="">ทุกหมวดหมู่</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
                 </option>
               ))}
             </select>
@@ -634,6 +770,24 @@ function TransactionsPage({
             <tbody>
               {visibleTransactions.map((transaction) => {
                 const category = categoryById.get(transaction.categoryId);
+                if (editingTransactionId === transaction.id) {
+                  return (
+                    <tr className="transaction-edit-row" key={transaction.id}>
+                      <td colSpan={6}>
+                        <EditTransactionForm
+                          categories={categories}
+                          transaction={transaction}
+                          onCancel={() => setEditingTransactionId(null)}
+                          onSubmit={async (input) => {
+                            const saved = await onUpdateTransaction(transaction.id, input);
+                            if (saved) setEditingTransactionId(null);
+                          }}
+                        />
+                      </td>
+                    </tr>
+                  );
+                }
+
                 return (
                   <tr key={transaction.id}>
                     <td data-label="วันที่">{formatDate(transaction.date)}</td>
@@ -683,14 +837,30 @@ function TransactionsPage({
                           </button>
                         </div>
                       ) : (
-                        <button
-                          className="icon-button danger"
-                          type="button"
-                          aria-label={`ลบ ${transaction.note || transaction.id}`}
-                          onClick={() => setPendingDeleteId(transaction.id)}
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="transaction-actions">
+                          <button
+                            className="icon-button"
+                            type="button"
+                            aria-label={`แก้ไข ${transaction.note || transaction.id}`}
+                            onClick={() => {
+                              setPendingDeleteId(null);
+                              setEditingTransactionId(transaction.id);
+                            }}
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            className="icon-button danger"
+                            type="button"
+                            aria-label={`ลบ ${transaction.note || transaction.id}`}
+                            onClick={() => {
+                              setEditingTransactionId(null);
+                              setPendingDeleteId(transaction.id);
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -698,11 +868,11 @@ function TransactionsPage({
               })}
             </tbody>
           </table>
-          {sortedTransactions.length === 0 && (
-            <p className="empty-state">ยังไม่มีรายการ</p>
+          {filteredTransactions.length === 0 && (
+            <p className="empty-state">ไม่พบรายการที่ตรงกับ filter</p>
           )}
         </div>
-        {sortedTransactions.length > 0 && (
+        {filteredTransactions.length > 0 && (
           <div className="pagination" aria-label="แบ่งหน้ารายการ">
             <button
               className="secondary-button compact"
@@ -731,6 +901,115 @@ function TransactionsPage({
         )}
       </div>
     </section>
+  );
+}
+
+function EditTransactionForm({
+  categories,
+  transaction,
+  onCancel,
+  onSubmit,
+}: {
+  categories: Category[];
+  transaction: Transaction;
+  onCancel: () => void;
+  onSubmit: (input: TransactionInput) => void | Promise<void>;
+}) {
+  const [categoryId, setCategoryId] = useState(transaction.categoryId);
+  const [amount, setAmount] = useState(String(transaction.amount));
+  const [note, setNote] = useState(transaction.note);
+  const [errors, setErrors] = useState<string[]>([]);
+  const selectableCategories = useMemo(() => {
+    const categoriesForType = getSelectableCategories(categories, transaction.type);
+    if (categoriesForType.some((category) => category.id === transaction.categoryId)) {
+      return categoriesForType;
+    }
+
+    const currentCategory = categories.find((category) => category.id === transaction.categoryId);
+    return currentCategory ? [currentCategory, ...categoriesForType] : categoriesForType;
+  }, [categories, transaction.categoryId, transaction.type]);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const input: TransactionInput = {
+      type: transaction.type,
+      categoryId,
+      amount: Number(amount),
+      date: transaction.date,
+      note: note.trim(),
+    };
+    const nextErrors = validateTransactionInput(input);
+
+    if (nextErrors.length > 0) {
+      setErrors(nextErrors);
+      return;
+    }
+
+    await onSubmit(input);
+    setErrors([]);
+  }
+
+  return (
+    <form
+      className="transaction-edit-form"
+      onSubmit={handleSubmit}
+      aria-label={`แก้ไขรายการ ${transaction.note || transaction.id}`}
+      noValidate
+    >
+      <label>
+        หมวดหมู่
+        <select
+          aria-label="หมวดหมู่"
+          required
+          value={categoryId}
+          onChange={(event) => setCategoryId(event.target.value)}
+        >
+          {selectableCategories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        จำนวนเงิน
+        <input
+          aria-label="จำนวนเงิน"
+          inputMode="decimal"
+          min="0"
+          required
+          step="0.01"
+          type="number"
+          value={amount}
+          onChange={(event) => setAmount(event.target.value)}
+        />
+      </label>
+      <label className="wide">
+        โน้ต
+        <input
+          aria-label="โน้ต"
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+        />
+      </label>
+      {errors.length > 0 && (
+        <div className="form-errors" role="alert">
+          {errors.map((error) => (
+            <p key={error}>{error}</p>
+          ))}
+        </div>
+      )}
+      <div className="transaction-edit-actions">
+        <button className="primary-button compact" type="submit">
+          <Save size={16} />
+          บันทึกการแก้ไข
+        </button>
+        <button className="secondary-button compact" type="button" onClick={onCancel}>
+          <X size={16} />
+          ยกเลิก
+        </button>
+      </div>
+    </form>
   );
 }
 
