@@ -850,7 +850,7 @@ function TransactionsPage({
                 }
 
                 return (
-                  <tr key={transaction.id}>
+                  <tr className="transaction-card-row" key={transaction.id}>
                     <td data-label="วันที่">{formatDate(transaction.date)}</td>
                     <td className="transaction-type-cell" data-label="ประเภท">
                       <span className={`type-pill ${transaction.type}`}>
@@ -866,14 +866,16 @@ function TransactionsPage({
                         <span>{category?.name ?? "ไม่พบหมวดหมู่"}</span>
                       </span>
                     </td>
-                    <td data-label="โน้ต">{transaction.note || "-"}</td>
+                    <td className="transaction-note-cell" data-label="โน้ต">
+                      {transaction.note || "-"}
+                    </td>
                     <td
                       data-label="จำนวนเงิน"
                       className={`amount-column ${transaction.type}`}
                     >
                       {formatCurrency(transaction.amount)}
                     </td>
-                    <td data-label="จัดการ">
+                    <td className="transaction-action-cell" data-label="จัดการ">
                       {pendingDeleteId === transaction.id ? (
                         <div
                           className="confirm-actions"
@@ -934,7 +936,7 @@ function TransactionsPage({
           )}
         </div>
         {filteredTransactions.length > 0 && (
-          <div className="pagination" aria-label="แบ่งหน้ารายการ">
+          <div className="pagination transaction-pagination" aria-label="แบ่งหน้ารายการ">
             <button
               className="secondary-button compact"
               disabled={currentPage === 1}

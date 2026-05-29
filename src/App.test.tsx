@@ -321,12 +321,20 @@ describe("App smoke flow", () => {
 
     const savingsRow = screen.getByText("เงินสำรอง").closest("tr");
     expect(savingsRow).not.toBeNull();
+    expect(savingsRow).toHaveClass("transaction-card-row");
     expect(within(savingsRow as HTMLTableRowElement).getByText("ออมเงิน").closest("td")).toHaveClass(
       "transaction-type-cell",
     );
     expect(within(savingsRow as HTMLTableRowElement).getByText("เงินออม").closest("td")).toHaveClass(
       "transaction-category-cell",
     );
+    expect(within(savingsRow as HTMLTableRowElement).getByText("เงินสำรอง").closest("td")).toHaveClass(
+      "transaction-note-cell",
+    );
+    expect(within(savingsRow as HTMLTableRowElement).getByLabelText("แก้ไข เงินสำรอง").closest("td")).toHaveClass(
+      "transaction-action-cell",
+    );
+    expect(screen.getByLabelText("แบ่งหน้ารายการ")).toHaveClass("transaction-pagination");
   });
 
   it("requires confirmation before resetting demo data", async () => {

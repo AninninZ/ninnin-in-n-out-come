@@ -91,6 +91,26 @@ describe('Dashboard', () => {
     expect(screen.getByLabelText('ตัวกรองช่วงเวลา')).toHaveClass('dashboard-filter-controls');
   });
 
+  it('groups every monthly filter field with consistent labels for responsive layout', () => {
+    render(
+      <Dashboard
+        transactions={transactions}
+        categories={defaultCategories}
+        filter={{ type: 'month', year: 2026, month: 5 }}
+        paydayDay={25}
+        onFilterChange={vi.fn()}
+      />,
+    );
+
+    const filters = screen.getByLabelText('ตัวกรองช่วงเวลา');
+    const fieldLabels = within(filters).getAllByText(/^(ช่วงเวลา|เดือน|ปี|วันเงินเดือนออก)$/);
+
+    expect(fieldLabels).toHaveLength(4);
+    fieldLabels.forEach((label) => {
+      expect(label.closest('label')).toHaveClass('dashboard-filter-field');
+    });
+  });
+
   it('updates displayed totals when the month filter changes', async () => {
     const user = userEvent.setup();
     const onFilterChange = vi.fn();

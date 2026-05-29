@@ -118,46 +118,58 @@ export function Dashboard({
           </div>
         </div>
         <div className="filter-controls dashboard-filter-controls" aria-label="ตัวกรองช่วงเวลา">
-          <select
-            aria-label="รูปแบบช่วงเวลา"
-            value={filter.type}
-            onChange={(event) => changeFilterType(event.target.value as PeriodFilter['type'])}
-          >
-            <option value="month">รายเดือน</option>
-            <option value="day">รายวัน</option>
-            <option value="year">รายปี</option>
-          </select>
+          <label className="dashboard-filter-field">
+            ช่วงเวลา
+            <select
+              aria-label="รูปแบบช่วงเวลา"
+              value={filter.type}
+              onChange={(event) => changeFilterType(event.target.value as PeriodFilter['type'])}
+            >
+              <option value="month">รายเดือน</option>
+              <option value="day">รายวัน</option>
+              <option value="year">รายปี</option>
+            </select>
+          </label>
           {filter.type === 'day' && (
-            <input
-              aria-label="วันที่"
-              type="date"
-              value={selectedDate}
-              onChange={(event) => changeDailyDate(event.target.value)}
-            />
+            <label className="dashboard-filter-field dashboard-filter-field-wide">
+              วันที่
+              <input
+                aria-label="วันที่"
+                type="date"
+                value={selectedDate}
+                onChange={(event) => changeDailyDate(event.target.value)}
+              />
+            </label>
           )}
           {filter.type === 'month' && (
-            <select
-              aria-label="เดือน"
-              value={filter.month}
-              onChange={(event) => onFilterChange({ ...filter, month: Number(event.target.value) })}
-            >
-              {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
-                <option key={month} value={month}>
-                  {getMonthName(month)}
-                </option>
-              ))}
-            </select>
+            <label className="dashboard-filter-field">
+              เดือน
+              <select
+                aria-label="เดือน"
+                value={filter.month}
+                onChange={(event) => onFilterChange({ ...filter, month: Number(event.target.value) })}
+              >
+                {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+                  <option key={month} value={month}>
+                    {getMonthName(month)}
+                  </option>
+                ))}
+              </select>
+            </label>
           )}
           {filter.type !== 'day' && (
-            <input
-              aria-label="ปี"
-              type="number"
-              value={filter.year}
-              onChange={(event) => onFilterChange({ ...filter, year: Number(event.target.value) })}
-            />
+            <label className="dashboard-filter-field">
+              ปี
+              <input
+                aria-label="ปี"
+                type="number"
+                value={filter.year}
+                onChange={(event) => onFilterChange({ ...filter, year: Number(event.target.value) })}
+              />
+            </label>
           )}
           {filter.type === 'month' && (
-            <label className="payday-control">
+            <label className="dashboard-filter-field payday-control">
               วันเงินเดือนออก
               <select
                 aria-label="วันเงินเดือนออก"

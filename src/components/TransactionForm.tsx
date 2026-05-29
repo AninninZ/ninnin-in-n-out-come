@@ -51,7 +51,7 @@ export function TransactionForm({ categories, onSubmit }: Props) {
 
   return (
     <form className="transaction-form" onSubmit={handleSubmit} aria-label="เพิ่มรายการ" noValidate>
-      <div className="segmented" aria-label="ประเภทรายการ">
+      <div className="segmented transaction-type-control transaction-type-control-full" aria-label="ประเภทรายการ">
         <button
           type="button"
           className={type === 'expense' ? 'active' : ''}
@@ -78,58 +78,65 @@ export function TransactionForm({ categories, onSubmit }: Props) {
         </button>
       </div>
 
-      <label>
-        หมวดหมู่
-        <select
-          aria-label="หมวดหมู่"
-          required
-          value={categoryId}
-          onChange={(event) => setCategoryId(event.target.value)}
-        >
-          <option value="">เลือกหมวดหมู่</option>
-          {selectableCategories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="transaction-fields-row" role="group" aria-label="ข้อมูลรายการ">
+        <label>
+          หมวดหมู่
+          <select
+            aria-label="หมวดหมู่"
+            required
+            value={categoryId}
+            onChange={(event) => setCategoryId(event.target.value)}
+          >
+            <option value="">เลือกหมวดหมู่</option>
+            {selectableCategories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </label>
 
-      <label>
-        จำนวนเงิน
-        <input
-          aria-label="จำนวนเงิน"
-          inputMode="decimal"
-          min="0"
-          required
-          step="0.01"
-          type="number"
-          value={amount}
-          onChange={(event) => setAmount(event.target.value)}
-          placeholder="0"
-        />
-      </label>
+        <label>
+          จำนวนเงิน
+          <input
+            aria-label="จำนวนเงิน"
+            inputMode="decimal"
+            min="0"
+            required
+            step="0.01"
+            type="number"
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+            placeholder="0"
+          />
+        </label>
 
-      <label>
-        วันที่
-        <input
-          aria-label="วันที่"
-          required
-          type="date"
-          value={date}
-          onChange={(event) => setDate(event.target.value)}
-        />
-      </label>
+        <label>
+          วันที่
+          <input
+            aria-label="วันที่"
+            required
+            type="date"
+            value={date}
+            onChange={(event) => setDate(event.target.value)}
+          />
+        </label>
 
-      <label className="wide">
-        โน้ต
-        <input
-          aria-label="โน้ต"
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-          placeholder="เช่น ข้าวกลางวัน"
-        />
-      </label>
+        <label className="transaction-note-field">
+          โน้ต
+          <input
+            aria-label="โน้ต"
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="เช่น ข้าวกลางวัน"
+          />
+        </label>
+
+        <button className="primary-button transaction-submit-button transaction-row-action" type="submit">
+          <Plus size={18} />
+          เพิ่มรายการ
+        </button>
+      </div>
 
       {errors.length > 0 && (
         <div className="form-errors" role="alert">
@@ -138,11 +145,6 @@ export function TransactionForm({ categories, onSubmit }: Props) {
           ))}
         </div>
       )}
-
-      <button className="primary-button" type="submit">
-        <Plus size={18} />
-        เพิ่มรายการ
-      </button>
     </form>
   );
 }

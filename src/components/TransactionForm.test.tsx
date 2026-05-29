@@ -38,4 +38,20 @@ describe('TransactionForm', () => {
       amount: 2500,
     }));
   });
+
+  it('marks the transaction type selector as a full-row control above the fields', () => {
+    render(<TransactionForm categories={defaultCategories} onSubmit={vi.fn()} />);
+
+    const form = screen.getByRole('form', { name: 'เพิ่มรายการ' });
+    const typeSelector = screen.getByLabelText('ประเภทรายการ');
+    const fieldsRow = screen.getByRole('group', { name: 'ข้อมูลรายการ' });
+
+    expect(form).toHaveClass('transaction-form');
+    expect(form.firstElementChild).toBe(typeSelector);
+    expect(typeSelector.nextElementSibling).toBe(fieldsRow);
+    expect(typeSelector).toHaveClass('transaction-type-control', 'transaction-type-control-full');
+    expect(fieldsRow).toHaveClass('transaction-fields-row');
+    expect(screen.getByLabelText('โน้ต').closest('label')).toHaveClass('transaction-note-field');
+    expect(screen.getByRole('button', { name: 'เพิ่มรายการ' })).toHaveClass('transaction-submit-button', 'transaction-row-action');
+  });
 });
