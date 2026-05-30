@@ -58,4 +58,5 @@ export type TransactionInput = {
   amount: number;
   date: string;
   note: string;
+  clientRequestId?: string;
 };

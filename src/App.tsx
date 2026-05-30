@@ -23,6 +23,7 @@ import {
   filterTransactionsForList,
   sortTransactions,
   todayISO,
+  upsertTransactionById,
   validateTransactionInput,
 } from "./domain/finance";
 import { formatCurrency, formatDate, getMonthName } from "./format";
@@ -223,9 +224,10 @@ export default function App() {
 
   async function addTransaction(input: TransactionInput) {
     const timestamp = new Date().toISOString();
+    const { clientRequestId, ...transactionInput } = input;
     const transaction: Transaction = {
-      id: crypto.randomUUID(),
-      ...input,
+      id: clientRequestId ?? crypto.randomUUID(),
+      ...transactionInput,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -234,13 +236,14 @@ export default function App() {
       const saved = await persistRemote((client, userId) =>
         upsertRemoteTransaction(client, userId, transaction),
       );
-      if (!saved) return;
+      if (!saved) return false;
     }
 
     setData((current) => ({
       ...current,
-      transactions: sortTransactions([transaction, ...current.transactions]),
+      transactions: upsertTransactionById(current.transactions, transaction),
     }));
+    return true;
   }
 
   async function deleteTransaction(id: string) {
@@ -658,7 +661,7 @@ function TransactionsPage({
   categoryById: Map<string, Category>;
   pageSize: TransactionPageSize;
   transactions: Transaction[];
-  onAddTransaction: (input: TransactionInput) => void | Promise<void>;
+  onAddTransaction: (input: TransactionInput) => boolean | Promise<boolean>;
   onDeleteTransaction: (id: string) => void | Promise<void>;
   onUpdateTransaction: (id: string, input: TransactionInput) => boolean | Promise<boolean>;
   onPageSizeChange: (pageSize: TransactionPageSize) => void;

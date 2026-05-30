@@ -43,6 +43,20 @@ export function sortTransactions(transactions: Transaction[]): Transaction[] {
   });
 }
 
+export function upsertTransactionById(
+  transactions: Transaction[],
+  transaction: Transaction,
+): Transaction[] {
+  const exists = transactions.some((current) => current.id === transaction.id);
+  const nextTransactions = exists
+    ? transactions.map((current) =>
+        current.id === transaction.id ? transaction : current,
+      )
+    : [transaction, ...transactions];
+
+  return sortTransactions(nextTransactions);
+}
+
 export function filterTransactionsByPeriod(
   transactions: Transaction[],
   filter: PeriodFilter,

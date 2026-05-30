@@ -10,6 +10,7 @@ import {
   getSelectableCategories,
   groupTransactionsByCategory,
   sortTransactions,
+  upsertTransactionById,
   validateTransactionInput,
 } from './finance';
 
@@ -413,5 +414,33 @@ describe('finance domain', () => {
         note: '',
       }),
     ).toEqual(['กรุณาเลือกหมวดหมู่', 'จำนวนเงินต้องมากกว่า 0', 'กรุณาเลือกวันที่']);
+  });
+
+  it('upserts a transaction by id instead of duplicating idempotent retries', () => {
+    const retryTransaction: Transaction = {
+      id: 'request-1',
+      type: 'expense',
+      categoryId: 'food',
+      amount: 85,
+      date: '2026-05-10',
+      note: 'ลาเต้',
+      createdAt: '2026-05-10T02:00:00.000Z',
+      updatedAt: '2026-05-10T02:00:00.000Z',
+    };
+
+    const result = upsertTransactionById(
+      [retryTransaction],
+      {
+        ...retryTransaction,
+        amount: 90,
+        updatedAt: '2026-05-10T02:00:05.000Z',
+      },
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual(expect.objectContaining({
+      id: 'request-1',
+      amount: 90,
+    }));
   });
 });

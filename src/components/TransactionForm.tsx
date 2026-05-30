@@ -6,16 +6,18 @@ import type { Category, TransactionInput, TransactionType } from '../types';
 
 type Props = {
   categories: Category[];
-  onSubmit: (input: TransactionInput) => void | Promise<void>;
+  onSubmit: (input: TransactionInput) => boolean | Promise<boolean>;
 };
 
 export function TransactionForm({ categories, onSubmit }: Props) {
+  const [clientRequestId, setClientRequestId] = useState(() => crypto.randomUUID());
   const [type, setType] = useState<TransactionType>('expense');
   const [categoryId, setCategoryId] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(todayISO());
   const [note, setNote] = useState('');
   const [errors, setErrors] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const selectableCategories = useMemo(
     () => getSelectableCategories(categories, type),
@@ -29,12 +31,15 @@ export function TransactionForm({ categories, onSubmit }: Props) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isSubmitting) return;
+
     const input: TransactionInput = {
       type,
       categoryId,
       amount: Number(amount),
       date,
       note: note.trim(),
+      clientRequestId,
     };
     const nextErrors = validateTransactionInput(input);
 
@@ -43,10 +48,19 @@ export function TransactionForm({ categories, onSubmit }: Props) {
       return;
     }
 
-    await onSubmit(input);
+    setIsSubmitting(true);
+    let saved = false;
+    try {
+      saved = await onSubmit(input);
+    } finally {
+      setIsSubmitting(false);
+    }
+    if (!saved) return;
+
     setAmount('');
     setNote('');
     setErrors([]);
+    setClientRequestId(crypto.randomUUID());
   }
 
   return (
@@ -132,9 +146,13 @@ export function TransactionForm({ categories, onSubmit }: Props) {
           />
         </label>
 
-        <button className="primary-button transaction-submit-button transaction-row-action" type="submit">
+        <button
+          className="primary-button transaction-submit-button transaction-row-action"
+          disabled={isSubmitting}
+          type="submit"
+        >
           <Plus size={18} />
-          เพิ่มรายการ
+          {isSubmitting ? 'กำลังบันทึก' : 'เพิ่มรายการ'}
         </button>
       </div>
 
