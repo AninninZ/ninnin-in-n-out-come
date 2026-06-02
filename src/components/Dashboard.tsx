@@ -22,6 +22,11 @@ import {
 } from 'recharts';
 
 const appLogoPath = '/assets/nin-jah-ma-jod-logo.png';
+const dateWithoutYearFormatter = new Intl.DateTimeFormat('th-TH', {
+  day: 'numeric',
+  month: 'short',
+});
+
 type DailyExpensePoint = {
   date: string;
   day: number;
@@ -52,7 +57,7 @@ export function Dashboard({
   const totals = calculateTotals(filteredTransactions);
   const expenseByCategory = groupTransactionsByCategory(filteredTransactions, categories, 'expense');
   const budgetUsage = calculateBudgetUsage(filteredTransactions, categories);
-  const sortedBudgetUsage = [...budgetUsage].sort((first, second) => {
+  const sortedBudgetUsage = budgetUsage.toSorted((first, second) => {
     const firstRisk = getBudgetRiskScore(first);
     const secondRisk = getBudgetRiskScore(second);
     if (firstRisk !== secondRisk) return secondRisk - firstRisk;
@@ -336,10 +341,7 @@ function formatDateWithoutYear(value: string): string {
   const date = new Date(year, month - 1, day);
   if (Number.isNaN(date.getTime())) return '';
 
-  return new Intl.DateTimeFormat('th-TH', {
-    day: 'numeric',
-    month: 'short',
-  }).format(date);
+  return dateWithoutYearFormatter.format(date);
 }
 
 function buildWeeklyExpenseTrend(
@@ -468,10 +470,7 @@ function YearTrendChart({
     <div
       className="trend-chart"
       role="img"
-      aria-label={`แนวโน้มรายรับรายจ่ายทั้งปี: ${data
-        .filter((item) => item.income > 0 || item.expense > 0)
-        .map((item) => `${item.month} รายรับ ${formatCurrency(item.income)} รายจ่าย ${formatCurrency(item.expense)}`)
-        .join(', ')}`}
+      aria-label={`แนวโน้มรายรับรายจ่ายทั้งปี: ${summarizeActiveMonths(data)}`}
     >
       <table className="sr-only">
         <caption>สรุปรายรับรายจ่ายรายเดือน</caption>
@@ -511,6 +510,17 @@ function YearTrendChart({
       </div>
     </div>
   );
+}
+
+function summarizeActiveMonths(
+  data: Array<{ month: string; income: number; expense: number }>,
+): string {
+  return data.reduce<string[]>((summary, item) => {
+    if (item.income === 0 && item.expense === 0) return summary;
+
+    summary.push(`${item.month} รายรับ ${formatCurrency(item.income)} รายจ่าย ${formatCurrency(item.expense)}`);
+    return summary;
+  }, []).join(', ');
 }
 
 function ExpenseCategoryChart({ data }: { data: CategoryTotal[] }) {

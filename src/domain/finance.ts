@@ -36,7 +36,7 @@ export function todayISO(now = new Date()): string {
 }
 
 export function sortTransactions(transactions: Transaction[]): Transaction[] {
-  return [...transactions].sort((left, right) => {
+  return transactions.toSorted((left, right) => {
     const dateOrder = right.date.localeCompare(left.date);
     if (dateOrder !== 0) return dateOrder;
     return right.createdAt.localeCompare(left.createdAt);
@@ -173,18 +173,18 @@ export function groupTransactionsByCategory(
   const categoryById = new Map(categories.map((category) => [category.id, category]));
   const totalsByCategory = new Map<string, { amount: number; transactionCount: number }>();
 
-  transactions
-    .filter((transaction) => (type ? transaction.type === type : true))
-    .forEach((transaction) => {
-      const current = totalsByCategory.get(transaction.categoryId) ?? {
-        amount: 0,
-        transactionCount: 0,
-      };
-      totalsByCategory.set(transaction.categoryId, {
-        amount: current.amount + transaction.amount,
-        transactionCount: current.transactionCount + 1,
-      });
+  for (const transaction of transactions) {
+    if (type && transaction.type !== type) continue;
+
+    const current = totalsByCategory.get(transaction.categoryId) ?? {
+      amount: 0,
+      transactionCount: 0,
+    };
+    totalsByCategory.set(transaction.categoryId, {
+      amount: current.amount + transaction.amount,
+      transactionCount: current.transactionCount + 1,
     });
+  }
 
   return Array.from(totalsByCategory.entries())
     .map(([categoryId, total]) => ({
@@ -209,26 +209,33 @@ export function calculateBudgetUsage(
     expenseTotals.map((total) => [total.category.id, total]),
   );
 
-  return categories
-    .filter((category) => category.isActive)
-    .filter((category) => category.type === 'expense' || category.type === 'both')
-    .filter((category) => typeof category.monthlyBudget === 'number' || expenseTotalByCategoryId.has(category.id))
-    .map((category) => {
-      const usage = expenseTotalByCategoryId.get(category.id);
-      const amount = usage?.amount ?? 0;
-      const budget = category.monthlyBudget ?? 0;
-      const percentUsed = budget > 0 ? Math.round((amount / budget) * 100) : 0;
+  const usageByCategory: BudgetUsage[] = [];
 
-      return {
-        category,
-        amount,
-        transactionCount: usage?.transactionCount ?? 0,
-        budget,
-        remaining: budget - amount,
-        percentUsed,
-      };
-    })
-    .sort((left, right) => right.amount - left.amount);
+  for (const category of categories) {
+    const usage = expenseTotalByCategoryId.get(category.id);
+    const isExpenseCategory = category.type === 'expense' || category.type === 'both';
+    const shouldInclude = (
+      category.isActive
+      && isExpenseCategory
+      && (typeof category.monthlyBudget === 'number' || Boolean(usage))
+    );
+    if (!shouldInclude) continue;
+
+    const amount = usage?.amount ?? 0;
+    const budget = category.monthlyBudget ?? 0;
+    const percentUsed = budget > 0 ? Math.round((amount / budget) * 100) : 0;
+
+    usageByCategory.push({
+      category,
+      amount,
+      transactionCount: usage?.transactionCount ?? 0,
+      budget,
+      remaining: budget - amount,
+      percentUsed,
+    });
+  }
+
+  return usageByCategory.sort((left, right) => right.amount - left.amount);
 }
 
 export function getSelectableCategories(
@@ -236,8 +243,7 @@ export function getSelectableCategories(
   type: TransactionType,
 ): Category[] {
   return categories
-    .filter((category) => category.isActive)
-    .filter((category) => category.type === type || category.type === 'both')
+    .filter((category) => category.isActive && (category.type === type || category.type === 'both'))
     .sort((left, right) => left.name.localeCompare(right.name, 'th'));
 }
 
