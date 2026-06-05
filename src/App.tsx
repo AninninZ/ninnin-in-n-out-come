@@ -1,4 +1,5 @@
 import {
+  ChevronDown,
   Download,
   LayoutDashboard,
   ListPlus,
@@ -669,6 +670,7 @@ function TransactionsPage({
   const [listFilter, setListFilter] = useState<TransactionListFilter>({});
   const [filtersOpen, setFiltersOpen] = useState(() => shouldOpenFiltersByDefault());
   const filteredTransactions = sortTransactions(filterTransactionsForList(transactions, listFilter));
+  const activeFilterCount = getActiveTransactionFilterCount(listFilter);
   const [page, setPage] = useState(1);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
@@ -747,7 +749,20 @@ function TransactionsPage({
           open={filtersOpen}
           onToggle={(event) => setFiltersOpen(event.currentTarget.open)}
         >
-          <summary>ตัวกรอง</summary>
+          <summary>
+            <span className="filter-summary-copy">
+              <span className="filter-summary-title">
+                ตัวกรอง
+                {activeFilterCount > 0 && (
+                  <span className="filter-count-badge">{activeFilterCount}</span>
+                )}
+              </span>
+              <span className="filter-summary-hint">
+                {filtersOpen ? "แตะเพื่อซ่อนรายการกรอง" : "แตะเพื่อเปิดรายการกรอง"}
+              </span>
+            </span>
+            <ChevronDown className="filter-summary-icon" size={18} aria-hidden="true" />
+          </summary>
           <div className="transaction-filter-controls" aria-label="ตัวกรองรายการ">
             <label>
               กรองวันที่
@@ -973,6 +988,10 @@ function TransactionsPage({
 function shouldOpenFiltersByDefault() {
   if (typeof window === "undefined" || !window.matchMedia) return true;
   return window.matchMedia("(min-width: 921px)").matches;
+}
+
+function getActiveTransactionFilterCount(filter: TransactionListFilter) {
+  return [filter.date, filter.month, filter.year, filter.categoryId].filter(Boolean).length;
 }
 
 function EditTransactionForm({

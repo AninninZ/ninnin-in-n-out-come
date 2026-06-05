@@ -15,6 +15,7 @@ describe("App smoke flow", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it("adds a category, records a backdated expense, and reflects it in the dashboard", async () => {
@@ -303,6 +304,31 @@ describe("App smoke flow", () => {
     expect(screen.queryByText("คนละเดือน")).not.toBeInTheDocument();
     expect(screen.queryByText("คนละหมวด")).not.toBeInTheDocument();
     expect(screen.getByText("แสดง 1-1 จาก 1 รายการ")).toBeInTheDocument();
+  });
+
+  it("makes mobile transaction filters visibly expandable", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "รายการ" }));
+
+    const disclosure = screen.getByText("ตัวกรอง").closest("details");
+    expect(disclosure).not.toHaveAttribute("open");
+    expect(screen.getByText("แตะเพื่อเปิดรายการกรอง")).toBeInTheDocument();
+
+    await user.click(screen.getByText("ตัวกรอง"));
+
+    expect(disclosure).toHaveAttribute("open");
+    expect(screen.getByText("แตะเพื่อซ่อนรายการกรอง")).toBeInTheDocument();
   });
 
   it("marks transaction cells for compact mobile reading", async () => {
