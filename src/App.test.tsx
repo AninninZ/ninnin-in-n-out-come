@@ -153,7 +153,7 @@ describe("App smoke flow", () => {
       within(editForm).getByRole("option", { name: "ค่าอาหาร" }),
     );
     await user.clear(within(editForm).getByLabelText("จำนวนเงิน"));
-    await user.type(within(editForm).getByLabelText("จำนวนเงิน"), "150");
+    await user.type(within(editForm).getByLabelText("จำนวนเงิน"), "120+60/2");
     await user.clear(within(editForm).getByLabelText("โน้ต"));
     await user.type(within(editForm).getByLabelText("โน้ต"), "กาแฟแก้ไข");
     await user.click(within(editForm).getByRole("button", { name: "บันทึกการแก้ไข" }));

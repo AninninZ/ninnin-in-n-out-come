@@ -9,6 +9,8 @@ import {
   getMonthlyPeriodRange,
   getSelectableCategories,
   groupTransactionsByCategory,
+  parseAmountExpression,
+  sanitizeAmountExpression,
   sortTransactions,
   upsertTransactionById,
   validateTransactionInput,
@@ -414,6 +416,28 @@ describe('finance domain', () => {
         note: '',
       }),
     ).toEqual(['กรุณาเลือกหมวดหมู่', 'จำนวนเงินต้องมากกว่า 0', 'กรุณาเลือกวันที่']);
+  });
+
+  it('parses a plain amount expression', () => {
+    expect(parseAmountExpression('85')).toBe(85);
+  });
+
+  it('calculates amount expressions with arithmetic operators', () => {
+    expect(parseAmountExpression('20+50')).toBe(70);
+    expect(parseAmountExpression('20.5 + 50')).toBe(70.5);
+    expect(parseAmountExpression('100-20*2+10/5')).toBe(62);
+    expect(parseAmountExpression('20x3')).toBe(60);
+    expect(parseAmountExpression('20X3')).toBe(60);
+  });
+
+  it('rejects malformed amount expressions', () => {
+    expect(parseAmountExpression('20+')).toBeNaN();
+    expect(parseAmountExpression('20/0')).toBeNaN();
+    expect(parseAmountExpression('abc')).toBeNaN();
+  });
+
+  it('keeps only amount characters while users type', () => {
+    expect(sanitizeAmountExpression('abc20+ข้าว50x2/4-1*3.5')).toBe('20+50x2/4-1*3.5');
   });
 
   it('upserts a transaction by id instead of duplicating idempotent retries', () => {

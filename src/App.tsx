@@ -22,6 +22,8 @@ import {
   getMonthlyFilterForDate,
   getSelectableCategories,
   filterTransactionsForList,
+  parseAmountExpression,
+  sanitizeAmountExpression,
   sortTransactions,
   todayISO,
   upsertTransactionById,
@@ -1019,12 +1021,26 @@ function EditTransactionForm({
     return currentCategory ? [currentCategory, ...categoriesForType] : categoriesForType;
   }, [categories, transaction.categoryId, transaction.type]);
 
+  function normalizeAmount() {
+    if (!/[+\-*/xX]/.test(amount)) return;
+
+    const parsedAmount = parseAmountExpression(amount);
+    if (Number.isFinite(parsedAmount)) {
+      setAmount(String(parsedAmount));
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const parsedAmount = parseAmountExpression(amount);
+    if (Number.isFinite(parsedAmount)) {
+      setAmount(String(parsedAmount));
+    }
+
     const input: TransactionInput = {
       type: transaction.type,
       categoryId,
-      amount: Number(amount),
+      amount: parsedAmount,
       date: transaction.date,
       note: note.trim(),
     };
@@ -1066,12 +1082,12 @@ function EditTransactionForm({
         <input
           aria-label="จำนวนเงิน"
           inputMode="decimal"
-          min="0"
+          pattern="[0-9.+*/xX -]*"
           required
-          step="0.01"
-          type="number"
+          type="text"
           value={amount}
-          onChange={(event) => setAmount(event.target.value)}
+          onChange={(event) => setAmount(sanitizeAmountExpression(event.target.value))}
+          onBlur={normalizeAmount}
         />
       </label>
       <label className="wide">

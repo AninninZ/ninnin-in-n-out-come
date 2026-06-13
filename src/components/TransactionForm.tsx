@@ -1,7 +1,13 @@
 import { Plus } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { useMemo, useState } from 'react';
-import { getSelectableCategories, todayISO, validateTransactionInput } from '../domain/finance';
+import {
+  getSelectableCategories,
+  parseAmountExpression,
+  sanitizeAmountExpression,
+  todayISO,
+  validateTransactionInput,
+} from '../domain/finance';
 import type { Category, TransactionInput, TransactionType } from '../types';
 
 type Props = {
@@ -29,14 +35,28 @@ export function TransactionForm({ categories, onSubmit }: Props) {
     setCategoryId('');
   }
 
+  function normalizeAmount() {
+    if (!/[+\-*/xX]/.test(amount)) return;
+
+    const parsedAmount = parseAmountExpression(amount);
+    if (Number.isFinite(parsedAmount)) {
+      setAmount(String(parsedAmount));
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isSubmitting) return;
 
+    const parsedAmount = parseAmountExpression(amount);
+    if (Number.isFinite(parsedAmount)) {
+      setAmount(String(parsedAmount));
+    }
+
     const input: TransactionInput = {
       type,
       categoryId,
-      amount: Number(amount),
+      amount: parsedAmount,
       date,
       note: note.trim(),
       clientRequestId,
@@ -115,12 +135,12 @@ export function TransactionForm({ categories, onSubmit }: Props) {
           <input
             aria-label="จำนวนเงิน"
             inputMode="decimal"
-            min="0"
+            pattern="[0-9.+*/xX -]*"
             required
-            step="0.01"
-            type="number"
+            type="text"
             value={amount}
-            onChange={(event) => setAmount(event.target.value)}
+            onChange={(event) => setAmount(sanitizeAmountExpression(event.target.value))}
+            onBlur={normalizeAmount}
             placeholder="0"
           />
         </label>

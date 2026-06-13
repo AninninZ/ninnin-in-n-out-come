@@ -247,6 +247,58 @@ export function getSelectableCategories(
     .sort((left, right) => left.name.localeCompare(right.name, 'th'));
 }
 
+export function parseAmountExpression(expression: string): number {
+  const value = expression.trim();
+  if (!value) return Number.NaN;
+
+  const tokens = value.replace(/\s+/g, '').match(/\d+(?:\.\d*)?|\.\d+|[+\-*/xX]/g);
+  if (!tokens || tokens.join('') !== value.replace(/\s+/g, '')) return Number.NaN;
+
+  const values: number[] = [];
+  const operators: string[] = [];
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (index % 2 === 0) {
+      const amount = Number(token);
+      if (!Number.isFinite(amount)) return Number.NaN;
+      values.push(amount);
+    } else {
+      if (!/[+\-*/xX]/.test(token)) return Number.NaN;
+      operators.push(token);
+    }
+  }
+
+  if (values.length !== operators.length + 1) return Number.NaN;
+
+  const terms = [values[0]];
+  const additiveOperators: string[] = [];
+
+  for (let index = 0; index < operators.length; index += 1) {
+    const operator = operators[index];
+    const nextValue = values[index + 1];
+
+    if (operator === '*' || operator === 'x' || operator === 'X') {
+      terms[terms.length - 1] *= nextValue;
+    } else if (operator === '/') {
+      if (nextValue === 0) return Number.NaN;
+      terms[terms.length - 1] /= nextValue;
+    } else {
+      additiveOperators.push(operator);
+      terms.push(nextValue);
+    }
+  }
+
+  return additiveOperators.reduce((total, operator, index) => {
+    const nextValue = terms[index + 1];
+    return operator === '+' ? total + nextValue : total - nextValue;
+  }, terms[0]);
+}
+
+export function sanitizeAmountExpression(expression: string): string {
+  return expression.replace(/[^0-9.+\-*/xX ]/g, '');
+}
+
 export function validateTransactionInput(input: TransactionInput): string[] {
   const errors: string[] = [];
 
